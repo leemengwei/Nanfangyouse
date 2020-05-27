@@ -148,12 +148,14 @@ class GA(GeneticAlgorithmBase):
                  lb=-1, ub=1,
                  constraint_eq=tuple(), constraint_ueq=tuple(),
                  precision=1e-7,
-                 MAX_TYPE_ALLOWED=4):
+                 MAX_TYPE_ALLOWED=4,
+                 ratio_taken=0):
         super().__init__(func, n_dim, size_pop, max_iter, prob_mut, constraint_eq, constraint_ueq)
 
         self.lb, self.ub = np.array(lb) * np.ones(self.n_dim), np.array(ub) * np.ones(self.n_dim)
         self.precision = np.array(precision) * np.ones(self.n_dim)  # works when precision is int, float, list or array
         self.MAX_TYPE_ALLOWED = int(MAX_TYPE_ALLOWED)
+        self.ratio_taken = ratio_taken
 
         # Lind is the num of genes of every variable of func（segments）
         Lind_raw = np.log2((self.ub - self.lb) / self.precision + 1)
@@ -245,7 +247,7 @@ class GA(GeneticAlgorithmBase):
             #Constraint 2: Sum=100%
             X_remap_01 = X_remap/X_remap.sum(axis=1).reshape(-1,1)
             #Constraint 3: <5% 分摊补偿
-            threshold = X_remap_01.sum(axis=1)*0.05
+            threshold = X_remap_01.sum(axis=1)/(1-self.ratio_taken)*0.05
             X_remap_01 = self.add_up(X_remap_01, threshold)
             #X_remap_01 = np.round(X_remap_01, 2)
             return X_remap_01
