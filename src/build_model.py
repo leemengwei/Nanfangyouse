@@ -305,11 +305,13 @@ def calculate():
         args.ELEMENT_MATTERS = list(pd.DataFrame(elements).columns)
         args.ELEMENT_PRIORITIES_SCORE = np.clip(len(args.ELEMENT_MATTERS) - np.array(priorities), 1, 99)
     else:
+        args.gama = 0  #没给优先级，则权重无效，随意填充一些Target
         args.ELEMENT_TARGETS_MEAN = pd.read_csv("../data/2_ELEMENT_TARGETS.csv")
         args.ELEMENT_MATTERS = args.ELEMENT_MATTERS
         args.ELEMENT_PRIORITIES_SCORE = np.array([0]*len(args.ELEMENT_MATTERS))
-        args.gama = 0
     args = compelete_basic_args(args)
+    args.epoch = req_data['presetParameter']['gaEpoch']
+    args.pop = int(int(req_data['presetParameter']['gaPop']/2)*2)
 
     #Call GA:
     _best_ratio_adjust_, best_solution, element_output = run_opt(args)
@@ -319,7 +321,13 @@ def calculate():
  
     #计算氧料比：
     Quality = req_data['presetParameter']['matteTargetGradePercentage']
-    oxygenMaterialRatio = calc_oxygen(element_output, Quality) #, args.Flow, args.Fe2O3_vs_FeO)
+    Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
+    Slag_S = req_data['presetParameter']['slagSPercentage']/100
+    Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
+    Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
+    Flow = 150
+    Fe2O3_vs_FeO = 0.4
+    oxygenMaterialRatio = calc_oxygen(element_output, Quality, Slag_Cu, Slag_S, Slag_Fe, Slag_SiO2, Flow, Fe2O3_vs_FeO)
 
     #pandas to req_data
     res_element = pd_to_res(element_output)[0]

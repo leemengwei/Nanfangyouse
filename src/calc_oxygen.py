@@ -11,7 +11,7 @@ import copy
 #from chempy import Substance
 from sympy import *
 
-def calc_oxygen(Mine_in, Quality, Flow=150, Fe2O3_vs_FeO=0.4):
+def calc_oxygen(Mine_in, Quality, Slag_Cu=0.0199, Slag_S=0.0045, Slag_Fe=0.48, Slag_SiO2=0.24, Flow=150, Fe2O3_vs_FeO=0.4):
     #Cu in Mine  (T)
     Mine_Cu_T = (Flow - Flow*Mine_in.H2O/100)*Mine_in.Cu/100
     Mine_Fe_T = (Flow - Flow*Mine_in.H2O/100)*Mine_in.Fe/100
@@ -26,10 +26,10 @@ def calc_oxygen(Mine_in, Quality, Flow=150, Fe2O3_vs_FeO=0.4):
     Matte_S = 4/(11+9*x)
 
     #Furnace Slag 熔炉渣  (%)
-    Slag_Cu = 0.0199
-    Slag_S = 0.0045
-    Slag_Fe = 0.48
-    Slag_SiO2 = 0.24
+    #Slag_Cu = 0.0199
+    #Slag_S = 0.0045
+    #Slag_Fe = 0.48
+    #Slag_SiO2 = 0.24
 
     #计算冰铜量（Mine_in中所有的Cu转化为Matte的Cu + Slag的Cu, Fe同理）(T)
     # Matte_T*Matte_Cu + Slag_T*Slag_Cu = Mine_Cu_T
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     #Mine in 混合矿输入  
     Mine_in = pd.read_csv("../data/2_ELEMENT_TARGETS.csv")
 
-    OxygenMaterialRatio = calc_oxygen(Mine_in, args.Quality, args.Flow, args.Fe2O3_vs_FeO)
+    OxygenMaterialRatio = calc_oxygen(Mine_in, args.Quality)
     print("OxygenMaterialRatio", OxygenMaterialRatio)
     
 
