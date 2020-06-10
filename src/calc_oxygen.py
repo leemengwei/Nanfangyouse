@@ -20,7 +20,7 @@ def calc_oxygen(Mine_in, Quality, Slag_Cu=0.0199, Slag_S=0.0045, Slag_Fe=0.48, S
 
     #Matte 冰铜 (%)
     #Quality = Cu% = x*Mass(Cu)*2/(x*Mass(Cu2S) + (1-x)*Mass(FeS))
-    x = 11*Quality/(16-9*Quality)   #x为CuS含量
+    x = 11*Quality/(16-9*Quality)   #x为CuS含量, Quality 0.74
     Matte_Cu = Quality
     Matte_Fe = 7*(1-x)/(11+9*x)
     Matte_S = 4/(11+9*x)
