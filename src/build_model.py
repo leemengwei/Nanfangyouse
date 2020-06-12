@@ -121,20 +121,15 @@ def add_solution_with_must_ratio_only(part_solution):  #走这条路的话，注
     return full_solution
 
 def get_consumed_amounts(this_solution):
-    try:
-        first_insufficient_type = this_solution.index[np.where(args.INGREDIENT_STORAGE.loc[this_solution.index, 'volume_of_storage']/this_solution['ratio']==min(args.INGREDIENT_STORAGE.loc[this_solution.index, 'volume_of_storage']/this_solution['ratio']))[0][0]]
-    except:
-        print("*"*888)
-        print(args.INGREDIENT_STORAGE.loc[this_solution.index,'volume_of_storage']/this_solution['ratio']==min(args.INGREDIENT_STORAGE.loc[this_solution.index, 'volume_of_storage']/this_solution['ratio']))
-        embed()
+    first_insufficient_type = this_solution.index[np.where(args.INGREDIENT_STORAGE.loc[this_solution.index, 'volume_of_storage']/this_solution['ratio']==min(args.INGREDIENT_STORAGE.loc[this_solution.index, 'volume_of_storage']/this_solution['ratio']))[0][0]]
     consumed_amounts = (this_solution['ratio']/this_solution.loc[first_insufficient_type, 'ratio'])*args.INGREDIENT_STORAGE.loc[first_insufficient_type, 'volume_of_storage']
     return consumed_amounts
 
 def mixing(args, this_solution):
     if args.MAX_TYPE_TO_SEARCH != 0:
-        if not this_solution.loc[args.INGREDIENT_CHOOSE_FROM[0], 'ratio'] < np.inf:    #当待选1个，precision=1,GA内部会出现唯一一个取为0情况导致出现nan，修订为1-ratio_taken.
+        if not this_solution.loc[this_solution.index[0], 'ratio'] < np.inf:    #当待选1个，precision=1,GA内部会出现唯一一个取为0情况导致出现nan，修订为1-ratio_taken.
             print("*"*88)
-            this_solution.loc[args.INGREDIENT_CHOOSE_FROM[0], 'ratio'] = 1 - args.INGREDIENT_STORAGE.loc[args.INGREDIENT_MUST_WITH_RATIO,'ratio'].sum()
+            this_solution.loc[this_solution.index[0], 'ratio'] = 1 - args.INGREDIENT_STORAGE.loc[args.INGREDIENT_MUST_WITH_RATIO,'ratio'].sum()
     if np.round(this_solution['ratio'].sum(), 3) != 1:
         if args.DEBUG:print("***Warning for ratio...", this_solution['ratio'].sum())
         this_solution['ratio'] = this_solution['ratio']/this_solution['ratio'].sum()
@@ -154,7 +149,7 @@ def evaluation(args, this_solution, element_output):
     #根据混合结果得到Objectives:
     obj_consumed = this_solution.loc[evaluate_on]['consumed_amounts']             #越大越好
     obj_leftover = this_solution.loc[evaluate_on, 'leftover'] #越小越好， 平滑
-    obj_leftover.loc[args.INGREDIENT_MUST_CLEAN] *= 1e5    #Penalty here，必清的不清，则惩罚
+    #obj_leftover.loc[args.INGREDIENT_MUST_CLEAN] *= 1e5    #Penalty here，必清的不清，则惩罚
     obj_leftover_01 =  (this_solution.loc[evaluate_on, 'leftover']/args.INGREDIENT_STORAGE.loc[evaluate_on, 'volume_of_storage']<0.01).sum()     #越大越好, 非平滑, 少于百分之一就算0
     obj_element_diff = abs(args.ELEMENT_TARGETS_MEAN - element_output)[args.ELEMENT_MATTERS]    #越小越好，平滑
     obj_element_01 = list(((args.ELEMENT_TARGETS_LOW[args.ELEMENT_MATTERS] < element_output[args.ELEMENT_MATTERS]) & (element_output[args.ELEMENT_MATTERS] < args.ELEMENT_TARGETS_HIGH[args.ELEMENT_MATTERS])).loc[0]).count(1)    #越大越好, 非平滑
@@ -238,7 +233,6 @@ def run_rand(args):
         best_ys.append(best_gay[0])
     best_ys = np.array(best_ys)
     print("***Random search best mean:", best_ys.mean(), best_ys.min())
-    sys.exit()
 
 def run_opt(args):
     blobs = []
@@ -267,7 +261,7 @@ def run_opt(args):
     print("***BEST:", best_solution)
     print(best_ys.min())
     _, element_output = mixing(args, best_solution)
-    return best_adjust_GA_ratio, best_solution, element_output
+    return best_adjust_GA_ratio, best_y, best_solution, element_output
 
 #For server~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def pd_to_res(storage):
@@ -322,9 +316,93 @@ def compelete_basic_args(args):
         args.JUST_MUST_AND_MUST_CLEAN_COLUMNS.append(args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.index(i))
     return args
 
+#@app.route('/api/quick_adjust', methods=['POST', 'GET'])
+#@cross_origin()
+def quick_adjust(best_solution, best_solution):   #API 4
+    req_data = request.get_json()
+    global args
+    best_solution, element_output = mixing(args, best_solution)
+    _, _best_y_ = evaluation(args, best_solution, element_output)
+
+    #计算氧料比：
+    Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
+    Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
+    Slag_S = req_data['presetParameter']['slagSPercentage']/100
+    Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
+    Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
+    Flow = 150
+    Fe2O3_vs_FeO = 0.4
+    oxygenMaterialRatio = calc_oxygen(element_output, Quality, Slag_Cu, Slag_S, Slag_Fe, Slag_SiO2, Flow, Fe2O3_vs_FeO)
+
+    #pandas to req_data
+    res_element = pd_to_res(element_output)[0]
+    res_data = pd_to_res(best_solution)
+    new_res_element = [] 
+    for key in res_element.keys(): 
+        if key=='name':continue 
+        new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
+
+    res_data = {
+        "list": 
+            res_data,
+        "calculateParameter":
+        {
+            "oxygenMaterialRatio": str(oxygenMaterialRatio),
+            "totalConsumedAmount": str(sum(best_solution['consumed_amounts'])),
+            "totalLeftOver": str(sum(best_solution['leftover'])),
+            "best_y": str(_best_y_),
+        },
+        "elementsMixtureList": 
+            new_res_element
+    }
+    res_data = {}
+    return jsonify(res_data)
+
+#@app.route('/api/quick_update', methods=['POST', 'GET'])
+#@cross_origin()
+def quick_update(best_solution):   #API 3
+    req_data = request.get_json()
+    global args
+    best_solution, element_output = mixing(args, best_solution)
+    _, _best_y_ = evaluation(args, best_solution, element_output)
+
+    #计算氧料比：
+    Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
+    Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
+    Slag_S = req_data['presetParameter']['slagSPercentage']/100
+    Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
+    Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
+    Flow = 150
+    Fe2O3_vs_FeO = 0.4
+    oxygenMaterialRatio = calc_oxygen(element_output, Quality, Slag_Cu, Slag_S, Slag_Fe, Slag_SiO2, Flow, Fe2O3_vs_FeO)
+
+    #pandas to req_data
+    res_element = pd_to_res(element_output)[0]
+    res_data = pd_to_res(best_solution)
+    new_res_element = [] 
+    for key in res_element.keys(): 
+        if key=='name':continue 
+        new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
+
+    res_data = {
+        "list": 
+            res_data,
+        "calculateParameter":
+        {
+            "oxygenMaterialRatio": str(oxygenMaterialRatio),
+            "totalConsumedAmount": str(sum(best_solution['consumed_amounts'])),
+            "totalLeftOver": str(sum(best_solution['leftover'])),
+            "best_y": str(_best_y_),
+        },
+        "elementsMixtureList": 
+            new_res_element
+    }
+    res_data = {}
+    return jsonify(res_data)
+
 @app.route('/api/calculate', methods=['POST', 'GET'])
 @cross_origin()
-def calculate():
+def calculate():    #API 2
     req_data = request.get_json()
     global args
 
@@ -361,15 +439,30 @@ def calculate():
     args = compelete_basic_args(args)
 
     #Call GA:
-    _best_ratio_adjust_, best_solution, element_output = run_opt(args)
+    _best_ratio_adjust_, _best_y_, best_solution, element_output = run_opt(args)
+    raw_ratio = best_solution['ratio']
     best_solution = best_solution.loc[best_solution.ratio!=0]
     best_solution = pd.concat((best_solution, args.INGREDIENT_STORAGE.loc[best_solution.index, args.ELEMENTS+['volume_of_storage','number']]), axis=1)
     #Web Show INT:
-    for index,content in best_solution.iterrows():   #如果页面上想展示detial：
-        best_solution.loc[index, 'ratio'] = str(np.round(best_solution.loc[index, 'ratio'],2))+" (%s%%)"%np.round(best_solution.loc[index, 'ratio']*100,2)
-    #best_solution.ratio = np.round(best_solution.ratio, 2)
-    best_solution.consumed_amounts = np.round(best_solution.consumed_amounts)
-    best_solution.leftover = np.round(best_solution.leftover)
+    interger_ratio = np.round(best_solution.ratio, 2)
+    need_to_add = int((1-interger_ratio.sum())*100)
+    if need_to_add!=0:
+        #各项余数tmp
+        drifts = best_solution.ratio - interger_ratio
+        drifts_ascending = drifts.sort_values()
+        if need_to_add>0: #不到100%需要补充 
+            for i in range(abs(need_to_add)): 
+                interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
+                print("Adding ", drifts_ascending.index[-(i+1)])
+        else:  # need_to_add<0:
+            for i in range(abs(need_to_add)): 
+                interger_ratio[drifts_ascending.index[i]] -= 0.01
+                print("Cutting ", drifts_ascending.index[i])
+    best_solution.ratio = np.round(interger_ratio, 2)
+    best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(best_solution)).astype(int), 0, best_solution['volume_of_storage'])
+    best_solution['leftover'] = best_solution['volume_of_storage'] - best_solution['consumed_amounts']
+    #for index,content in best_solution.iterrows():   #如果页面上想展示detial：
+    #    best_solution.loc[index, 'ratio'] = str(best_solution.loc[index, 'ratio'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
 
     #计算氧料比：
     Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
@@ -395,15 +488,21 @@ def calculate():
         "calculateParameter":
         {
             "oxygenMaterialRatio": str(oxygenMaterialRatio),
+            "totalConsumedAmount": str(sum(best_solution['consumed_amounts'])),
+            "totalLeftOver": str(sum(best_solution['leftover'])),
+            "best_y": str(_best_y_),
         },
         "elementsMixtureList": 
-        new_res_element
+            new_res_element
     }
+
+    quick_update(best_solution)
+
     return jsonify(res_data)
 
 @app.route('/api/getInventory', methods=['GET'])
 @cross_origin()
-def getInventory():
+def getInventory():    #API 1
     global args
     #获取库存 for 显示
     inventory_storage = get_storage(for_show=True)
@@ -423,7 +522,7 @@ if __name__ == '__main__':
     parser.add_argument("-P", '--pop', type=int, default=100)
     parser.add_argument("-A", '--alpha', type=int, default=1)
     parser.add_argument("-B", '--beta', type=int, default=1)
-    parser.add_argument("-G", '--gama', type=int, default=1)
+    parser.add_argument("-G", '--gama', type=int, default=1)  #default=3~4  ~=2*alpha+1*beta
     parser.add_argument("-T", '--threads', type=int, default=int(cpu_count()/2))
     parser.add_argument("-M", '--MAX_TYPE_TO_SEARCH', type=int, default=4)
     parser.add_argument("-ELEMENTS", '--ELEMENTS', type=list, default=['Cu', 'Fe', 'S', 'SiO2', 'CaO', 'As', 'Zn', 'Pb', 'MgO', 'Al2O3', 'H2O'])
@@ -465,9 +564,10 @@ if __name__ == '__main__':
         #random_search = False
         if random_search:
             run_rand(args)
+        sys.exit()
 
         #Optimization:
-        run_opt(args)
+        #run_opt(args)
 
 
 

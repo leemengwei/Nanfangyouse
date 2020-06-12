@@ -239,10 +239,9 @@ class GA(GeneticAlgorithmBase):
             else:
                 Chrom_temp = Chrom[:, cumsum_len_segment[i - 1]:cumsum_len_segment[i]]
             X_ratio[:, i] = self.gray2rv(Chrom_temp)
-        #X = self.lb + (self.ub - self.lb) * X_ratio
+        X = self.lb + (self.ub - self.lb) * X_ratio
 
         # By lmw for METAL SMELTING:
-        #X[-1] = [52., 21.,  0.,  0.,  0.,  7., 20.]
         X = X_ratio
         # Constraint 0-1: “仅仅必选”项目必须保留（需要优化百分比），先行扩大一百倍，确保排名时一定被选中
         X[:, self.columns_just_must] = X[:, self.columns_just_must]*100
@@ -260,9 +259,9 @@ class GA(GeneticAlgorithmBase):
             X_remap = X**4   #拉大差距！ 次方后整体向0偏移
             # Constraint 0-3 关于降维，按说应该在给GA的维度上直接降，才可以保证染色体生成时不考虑某些维度。不过此处简化处理，直接改掉这些数值，但这些染色体维度还存在。可理解成关于此染色体的维度还在，但该基因不表达，而受must clean中量最小对应物料的基因表达。
             X_remap = self.reduce_dimension(X_remap)
-            #Constraint 2: Sum=100%
+            # Constraint 2: Sum=100%
             X_remap_01 = X_remap/X_remap.sum(axis=1).reshape(-1,1)
-            #Constraint 3: <5% 分摊补偿
+            # Constraint 3: <5% 分摊补偿
             threshold = X_remap_01.sum(axis=1)/(1-self.ratio_taken)*0.05
             X_remap_01 = self.add_up(X_remap_01, threshold)
             #X_remap_01 = np.round(X_remap_01, 2)
