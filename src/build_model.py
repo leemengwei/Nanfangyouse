@@ -318,25 +318,28 @@ def compelete_basic_args(args):
 
 #@app.route('/api/quick_adjust', methods=['POST', 'GET'])
 #@cross_origin()
-def quick_adjust(best_solution, best_solution):   #API 4
+def quick_adjust():   #API 4
     req_data = request.get_json()
     global args
-    best_solution, element_output = mixing(args, best_solution)
-    _, _best_y_ = evaluation(args, best_solution, element_output)
+
+    _best_ratio_adjust_, _best_y_, solution_1, element_output = run_opt(args)
+    _best_ratio_adjust_, _best_y_, solution_2, element_output = run_opt(args)
+
+    def get_compose_solution(solution_1, solution_2):
+        compose_solution = solution_1
+        embed()
+        return compose_solution
+
+    compose_solution = get_compose_solution(solution_1, solution_2)
+    compose_solution, compose_element_output = mixing(args, best_solution)
+    _, _best_y_ = evaluation(args, compose_solution, compose_element_output)
 
     #计算氧料比：
-    Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
-    Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
-    Slag_S = req_data['presetParameter']['slagSPercentage']/100
-    Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
-    Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
-    Flow = 150
-    Fe2O3_vs_FeO = 0.4
-    oxygenMaterialRatio = calc_oxygen(element_output, Quality, Slag_Cu, Slag_S, Slag_Fe, Slag_SiO2, Flow, Fe2O3_vs_FeO)
+    oxygenMaterialRatio = calc_oxygen(compose_solution, args.Quality, args.Slag_Cu, args.Slag_S, args.Slag_Fe, args.Slag_SiO2, args.Flow, args.Fe2O3_vs_FeO)
 
     #pandas to req_data
-    res_element = pd_to_res(element_output)[0]
-    res_data = pd_to_res(best_solution)
+    res_element = pd_to_res(compose_output)[0]
+    res_data = pd_to_res(compose_solution)
     new_res_element = [] 
     for key in res_element.keys(): 
         if key=='name':continue 
@@ -348,8 +351,8 @@ def quick_adjust(best_solution, best_solution):   #API 4
         "calculateParameter":
         {
             "oxygenMaterialRatio": str(oxygenMaterialRatio),
-            "totalConsumedAmount": str(sum(best_solution['consumed_amounts'])),
-            "totalLeftOver": str(sum(best_solution['leftover'])),
+            "totalConsumedAmount": str(sum(compose_solution['consumed_amounts'])),
+            "totalLeftOver": str(sum(compose_solution['leftover'])),
             "best_y": str(_best_y_),
         },
         "elementsMixtureList": 
@@ -367,14 +370,7 @@ def quick_update(best_solution):   #API 3
     _, _best_y_ = evaluation(args, best_solution, element_output)
 
     #计算氧料比：
-    Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
-    Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
-    Slag_S = req_data['presetParameter']['slagSPercentage']/100
-    Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
-    Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
-    Flow = 150
-    Fe2O3_vs_FeO = 0.4
-    oxygenMaterialRatio = calc_oxygen(element_output, Quality, Slag_Cu, Slag_S, Slag_Fe, Slag_SiO2, Flow, Fe2O3_vs_FeO)
+    oxygenMaterialRatio = calc_oxygen(element_output, args.Quality, args.Slag_Cu, args.Slag_S, args.Slag_Fe, args.Slag_SiO2, args.Flow, args.Fe2O3_vs_FeO)
 
     #pandas to req_data
     res_element = pd_to_res(element_output)[0]
@@ -444,35 +440,38 @@ def calculate():    #API 2
     best_solution = best_solution.loc[best_solution.ratio!=0]
     best_solution = pd.concat((best_solution, args.INGREDIENT_STORAGE.loc[best_solution.index, args.ELEMENTS+['volume_of_storage','number']]), axis=1)
     #Web Show INT:
-    interger_ratio = np.round(best_solution.ratio, 2)
-    need_to_add = int((1-interger_ratio.sum())*100)
-    if need_to_add!=0:
-        #各项余数tmp
-        drifts = best_solution.ratio - interger_ratio
-        drifts_ascending = drifts.sort_values()
-        if need_to_add>0: #不到100%需要补充 
-            for i in range(abs(need_to_add)): 
-                interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
-                print("Adding ", drifts_ascending.index[-(i+1)])
-        else:  # need_to_add<0:
-            for i in range(abs(need_to_add)): 
-                interger_ratio[drifts_ascending.index[i]] -= 0.01
-                print("Cutting ", drifts_ascending.index[i])
-    best_solution.ratio = np.round(interger_ratio, 2)
-    best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(best_solution)).astype(int), 0, best_solution['volume_of_storage'])
-    best_solution['leftover'] = best_solution['volume_of_storage'] - best_solution['consumed_amounts']
-    #for index,content in best_solution.iterrows():   #如果页面上想展示detial：
-    #    best_solution.loc[index, 'ratio'] = str(best_solution.loc[index, 'ratio'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
+    def web_show_int(best_solution):
+        interger_ratio = np.round(best_solution.ratio, 2)
+        need_to_add = int((1-interger_ratio.sum())*100)
+        if need_to_add!=0:
+            #各项余数tmp
+            drifts = best_solution.ratio - interger_ratio
+            drifts_ascending = drifts.sort_values()
+            if need_to_add>0: #不到100%需要补充 
+                for i in range(abs(need_to_add)): 
+                    interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
+                    print("Adding ", drifts_ascending.index[-(i+1)])
+            else:  # need_to_add<0:
+                for i in range(abs(need_to_add)): 
+                    interger_ratio[drifts_ascending.index[i]] -= 0.01
+                    print("Cutting ", drifts_ascending.index[i])
+        best_solution.ratio = np.round(interger_ratio, 2)
+        best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(best_solution)).astype(int), 0, best_solution['volume_of_storage'])
+        best_solution['leftover'] = best_solution['volume_of_storage'] - best_solution['consumed_amounts']
+        #for index,content in best_solution.iterrows():   #如果页面上想展示detial：
+        #    best_solution.loc[index, 'ratio'] = str(best_solution.loc[index, 'ratio'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
+        return best_solution
+    best_solution = web_show_int(best_solution)
 
     #计算氧料比：
-    Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
-    Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
-    Slag_S = req_data['presetParameter']['slagSPercentage']/100
-    Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
-    Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
-    Flow = 150
-    Fe2O3_vs_FeO = 0.4
-    oxygenMaterialRatio = calc_oxygen(element_output, Quality, Slag_Cu, Slag_S, Slag_Fe, Slag_SiO2, Flow, Fe2O3_vs_FeO)
+    args.Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
+    args.Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
+    args.Slag_S = req_data['presetParameter']['slagSPercentage']/100
+    args.Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
+    args.Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
+    args.Flow = 150
+    args.Fe2O3_vs_FeO = 0.4
+    oxygenMaterialRatio = calc_oxygen(element_output, args.Quality, args.Slag_Cu, args.Slag_S, args.Slag_Fe, args.Slag_SiO2, args.Flow, args.Fe2O3_vs_FeO)
 
     #pandas to req_data
     res_element = pd_to_res(element_output)[0]
@@ -496,7 +495,8 @@ def calculate():    #API 2
             new_res_element
     }
 
-    quick_update(best_solution)
+    #quick_update(best_solution)
+    quick_adjust()
 
     return jsonify(res_data)
 
