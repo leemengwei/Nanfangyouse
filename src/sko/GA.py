@@ -148,14 +148,18 @@ class GA(GeneticAlgorithmBase):
                  lb=-1, ub=1,
                  constraint_eq=tuple(), constraint_ueq=tuple(),
                  precision=1e-7,
-                 MAX_TYPE_ALLOWED=4,
-                 ratio_taken=0):
+                 MAX_TYPE_TO_SEARCH=4,
+                 ratio_taken=0,
+                 columns_just_must=[]
+                 ):
         super().__init__(func, n_dim, size_pop, max_iter, prob_mut, constraint_eq, constraint_ueq)
 
         self.lb, self.ub = np.array(lb) * np.ones(self.n_dim), np.array(ub) * np.ones(self.n_dim)
         self.precision = np.array(precision) * np.ones(self.n_dim)  # works when precision is int, float, list or array
-        self.MAX_TYPE_ALLOWED = int(MAX_TYPE_ALLOWED)
+        self.MAX_TYPE_TO_SEARCH = int(MAX_TYPE_TO_SEARCH)
         self.ratio_taken = ratio_taken
+        self.columns_just_must = columns_just_must[0]
+        self.dimension_reducer_dict = columns_just_must[1]
 
         # Lind is the num of genes of every variable of func（segments）
         Lind_raw = np.log2((self.ub - self.lb) / self.precision + 1)
@@ -192,7 +196,7 @@ class GA(GeneticAlgorithmBase):
         mask = np.logspace(start=1, stop=len_gray_code, base=0.5, num=len_gray_code)
         return (b * mask).sum(axis=1) / mask.sum()
 
-    def cut_out_classes(self, X, threshold):
+    def cut_out_columns(self, X, threshold):
         threshold = threshold.reshape(-1, 1)
         where_droped = np.where(X<threshold)
         where_left = np.where(X>=threshold)
@@ -212,12 +216,21 @@ class GA(GeneticAlgorithmBase):
         tmp_X = threshold - tmp_X
         tmp_X[where_ok] = 0
         compensation = tmp_X.sum(axis=1)
-        #挑选每一行最大的来补偿，这样才不会赔完了自己反而小于5%
+        #挑选每一行最大的来补偿，这样才不会补完了自己反而小于5%
         X[range(X.shape[0]), X.argmax(axis=1)] = X[range(X.shape[0]), X.argmax(axis=1)] - compensation
         X = X + tmp_X  #稍有精度上的差别，不用管了
         return X
 
-    def chrom2x(self, Chrom):            #GA
+    def reduce_dimension(self, X):
+        if len(list(self.dimension_reducer_dict.keys()))>0:
+            least_must_clean_col = np.array(list(self.dimension_reducer_dict.keys()))[np.array(list(self.dimension_reducer_dict.values()))==1][0]
+            X[:, least_must_clean_col] = np.clip(X[:, least_must_clean_col], a_min=1e-8, a_max=np.inf)
+            X[:, np.array(list(self.dimension_reducer_dict.keys()))] = X[:, least_must_clean_col].reshape(-1,1)*list(self.dimension_reducer_dict.values())
+        else:
+            pass
+        return X
+
+    def chrom2x(self, Chrom):   #GA, 基因到x的表达
         cumsum_len_segment = self.Lind.cumsum()
         X_ratio = np.zeros(shape=(self.size_pop, self.n_dim))
         for i, j in enumerate(cumsum_len_segment):
@@ -226,27 +239,29 @@ class GA(GeneticAlgorithmBase):
             else:
                 Chrom_temp = Chrom[:, cumsum_len_segment[i - 1]:cumsum_len_segment[i]]
             X_ratio[:, i] = self.gray2rv(Chrom_temp)
-        #X = self.lb + (self.ub - self.lb) * X_ratio
+        X = self.lb + (self.ub - self.lb) * X_ratio
 
-        # By lmw for METAL FUSING:
-        #X[-1] = [52., 21.,  0.,  0.,  0.,  7., 20.]
+        # By lmw for METAL SMELTING:
         X = X_ratio
-
-        # 注意Constraints之间的顺序如不合适 则处理起来会很麻烦
+        # Constraint 0-1: “仅仅必选”项目必须保留（需要优化百分比），先行扩大一百倍，确保排名时一定被选中
+        X[:, self.columns_just_must] = X[:, self.columns_just_must]*100
         # Constraint 1: 处理输物料最大种类限制，排名范围靠后的先删掉为0，无所为总占比，不用分摊（想被选中的个体需要挤进前几名） 
         sorted_X = copy.deepcopy(X)
         sorted_X.sort() 
-        threshold = sorted_X[:, -self.MAX_TYPE_ALLOWED:][:,0]
-        X, where_left = self.cut_out_classes(X, threshold)
-
+        threshold = sorted_X[:, -(self.MAX_TYPE_TO_SEARCH+len(self.columns_just_must)):][:,0]
+        X, where_left = self.cut_out_columns(X, threshold)
+        # Constraint 0-2 必保留列缩回100倍
+        X[:, self.columns_just_must] = X[:, self.columns_just_must]/100
         #use_dirichlet = True
         use_dirichlet = False
         if not use_dirichlet:
             #如果不用dirichlet,需要手动做重映射，好处是映射关系稳定，坏处是可能损失完备性，或者分布不好，难优化
-            X_remap = X**4   #次方后整体向0偏移
-            #Constraint 2: Sum=100%
+            X_remap = X**4   #拉大差距！ 次方后整体向0偏移
+            # Constraint 0-3 关于降维，按说应该在给GA的维度上直接降，才可以保证染色体生成时不考虑某些维度。不过此处简化处理，直接改掉这些数值，但这些染色体维度还存在。可理解成关于此染色体的维度还在，但该基因不表达，而受must clean中量最小对应物料的基因表达。
+            X_remap = self.reduce_dimension(X_remap)
+            # Constraint 2: Sum=100%
             X_remap_01 = X_remap/X_remap.sum(axis=1).reshape(-1,1)
-            #Constraint 3: <5% 分摊补偿
+            # Constraint 3: <5% 分摊补偿
             threshold = X_remap_01.sum(axis=1)/(1-self.ratio_taken)*0.05
             X_remap_01 = self.add_up(X_remap_01, threshold)
             #X_remap_01 = np.round(X_remap_01, 2)
@@ -254,16 +269,16 @@ class GA(GeneticAlgorithmBase):
         else:
             # Constraint 2: 此处针对于剩余的列（维度暂时缩小），使用狄利克雷函数重映射Sum=100%  （进入排名的个体被分配合理的百分比）
             #分布可以保证每一行和为1, 同时使得分布范围广,但随机生成的狄利克雷函数会使得函数震荡, 即基因数值仅确定排名，具体表征为多少被随机生成所决定，即最终优化得到的结果用料的排名一定是正确的，具体比例随着时间增加趋于最终正确值。
-            if len(X[where_left])%self.MAX_TYPE_ALLOWED!=0:
-                print("In GA, X % MAX_TYPE_ALLOWED should be 0", "RARE"*1000)
-                embed()
+            if len(X[where_left])%self.MAX_TYPE_TO_SEARCH!=0:
+                print("In GA, X % MAX_TYPE_TO_SEARCH should be 0", "RARE"*1000)
+                #embed()
                 return X
-            X_left = X[where_left].reshape(-1, self.MAX_TYPE_ALLOWED)
-            dirichlet_map = np.random.dirichlet(np.ones(self.MAX_TYPE_ALLOWED),size=X_left.shape[0]) 
+            X_left = X[where_left].reshape(-1, self.MAX_TYPE_TO_SEARCH)
+            dirichlet_map = np.random.dirichlet(np.ones(self.MAX_TYPE_TO_SEARCH),size=X_left.shape[0]) 
             dirichlet_map.sort(axis=1)   #自己先排序，准备好接受X_left排序
             X_order = X_left.argsort(axis=1)
-            ordered_dirichlet_map = np.zeros((self.size_pop, self.MAX_TYPE_ALLOWED))
-            for i in range(self.MAX_TYPE_ALLOWED):
+            ordered_dirichlet_map = np.zeros((self.size_pop, self.MAX_TYPE_TO_SEARCH))
+            for i in range(self.MAX_TYPE_TO_SEARCH):
                 ordered_dirichlet_map[:, i] = dirichlet_map[X_order == i]
             X_left = ordered_dirichlet_map   #X变为了dirichlet map
     
@@ -344,9 +359,6 @@ class GA_TSP(GeneticAlgorithmBase):
     Examples
     -------------
     Firstly, your data (the distance matrix). Here I generate the data randomly as a demo:
-    ```py
-    num_points = 8
-    points_coordinate = np.random.rand(num_points, 2)  # generate coordinate of points
     distance_matrix = spatial.distance.cdist(points_coordinate, points_coordinate, metric='euclidean')
     print('distance_matrix is: \n', distance_matrix)
     def cal_total_distance(routine):
