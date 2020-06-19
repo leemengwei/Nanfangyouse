@@ -11,7 +11,15 @@ import copy
 #from chempy import Substance
 from sympy import *
 
-def calc_oxygen(Mine_in, Quality, Slag_Cu=0.0199, Slag_S=0.0045, Slag_Fe=0.48, Slag_SiO2=0.24, Flow=150, Fe2O3_vs_FeO=0.4):
+def calc_oxygen(args, Mine_in, debug=False):
+    Quality = args.Quality
+    Slag_Cu = args.Slag_Cu
+    Slag_S = args.Slag_S
+    Slag_Fe = args.Slag_Fe
+    Slag_SiO2 = args.Slag_SiO2
+    Flow = args.Flow
+    Fe2O3_vs_FeO = args.Fe2O3_vs_FeO
+    #print(args.Quality,args.Slag_Cu,args.Slag_S,args.Slag_Fe,args.Slag_SiO2,args.Flow , args.Fe2O3_vs_FeO)
     #Cu in Mine  (T)
     Mine_Cu_T = (Flow - Flow*Mine_in.H2O/100)*Mine_in.Cu/100
     Mine_Fe_T = (Flow - Flow*Mine_in.H2O/100)*Mine_in.Fe/100
@@ -34,13 +42,20 @@ def calc_oxygen(Mine_in, Quality, Slag_Cu=0.0199, Slag_S=0.0045, Slag_Fe=0.48, S
     #计算冰铜量（Mine_in中所有的Cu转化为Matte的Cu + Slag的Cu, Fe同理）(T)
     # Matte_T*Matte_Cu + Slag_T*Slag_Cu = Mine_Cu_T
     # Matte_T*Matte_Fe + Slag_T*Slag_Fe = Mine_Fe_T
+    # Matte_T = (Mine_Cu_T - Slag_T*Slag_Cu)/Matte_Cu
+    # (Mine_Cu_T - Slag_T*Slag_Cu)*Matte_Fe/Matte_Cu + Slag_T*Slag_Fe = Mine_Fe_T
+    # Slag_T = (Mine_Fe_T - Mine_Cu_T*Matte_Fe/Matte_Cu)/(Slag_Fe- Slag_Cu*Matte_Fe/Matte_Cu)
+    #
     #定义变量
-    x = Symbol('x')
-    y = Symbol('y')
-    res = solve([x*Matte_Cu + y*Slag_Cu - Mine_Cu_T, x*Matte_Fe + y*Slag_Fe - Mine_Fe_T])
-    #所以，修正后的冰铜量以及渣量：
-    Matte_T = res[x]
-    Slag_T = res[y]
+    #x = Symbol('x')
+    #y = Symbol('y')
+    #res = solve([x*Matte_Cu + y*Slag_Cu - Mine_Cu_T, x*Matte_Fe + y*Slag_Fe - Mine_Fe_T])
+    ##所以，修正后的冰铜量以及渣量：
+    #Matte_T = res[x]
+    #Slag_T = res[y]
+    #手动解方程（更快）
+    Slag_T = (Mine_Fe_T - Mine_Cu_T*Matte_Fe/Matte_Cu)/(Slag_Fe- Slag_Cu*Matte_Fe/Matte_Cu)
+    Matte_T = (Mine_Cu_T - Slag_T*Slag_Cu)/Matte_Cu
     #冰铜中元素重量、渣中元素重量
     Matte_Fe_T = Matte_T*Matte_Fe
     Matte_S_T = Matte_T*Matte_S
@@ -58,7 +73,8 @@ def calc_oxygen(Mine_in, Quality, Slag_Cu=0.0199, Slag_S=0.0045, Slag_Fe=0.48, S
     #氧料比：
     Oxygen_Volume = Oxygen_needed_T*1000/1.331058
     OxygenMaterialRatio = Oxygen_Volume/Flow
-
+    if debug:
+        embed()
     return OxygenMaterialRatio.values[0]
 
 if __name__ == '__main__':

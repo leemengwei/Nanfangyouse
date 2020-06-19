@@ -22,6 +22,7 @@ from sys import stderr
 from flask_cors import cross_origin  #戚总-张驰API
 from calc_oxygen import calc_oxygen
 app = Flask(__name__)
+import random
 
 def get_constraints(args):   #Constraints are weak.
     #For eq
@@ -74,6 +75,8 @@ def get_storage(for_show=False):
         ingredient_storage = pd.read_csv("../data/0_INVENTORY_STORAGE_ALL.csv", index_col='name')
     else:
         ingredient_storage = pd.read_csv("../data/1_INVENTORY_STORAGE_CHOOSE_FROM.csv", index_col='name')
+    for this_element in args.ELEMENTS:
+        ingredient_storage[this_element] = np.round(ingredient_storage[this_element], 6)
     which_is_time = np.where(ingredient_storage.columns=='when_comes_in')[0][0]
     #str to datetime
     for row_idx,row in enumerate(ingredient_storage.iterrows()):
@@ -100,23 +103,23 @@ def generate_solution(their_ratio):
     part_solution = add_solution_with_must_ratio_only(part_solution)  #GA出来已有‘仅必选’&‘必清空’
     return part_solution
 
-def add_solution_with_must_ratio_and_must_clean(part_solution):    #TODO决定不走这条路了，还是把‘仅必选、必选且用光’两个都传给GA，之后对后者再惩罚吧。
+def add_solution_with_must_ratio_and_must_clean(part_solution):    #决定不走这条路了，还是把‘仅必选、必选且用光’两个都传给GA，之后对后者再惩罚吧。
     #a) GA出来已经包含了’仅必备’，这里首先考虑加上‘必备且有百分比’的行：
-    for must_this in args.INGREDIENT_MUST_WITH_RATIO:
-        part_solution.loc[must_this, 'ratio'] = args.INGREDIENT_STORAGE.loc[must_this, 'ratio']
+    for must_this_with_ratio in args.INGREDIENT_MUST_WITH_RATIO:
+        part_solution.loc[must_this_with_ratio, 'ratio'] = args.INGREDIENT_STORAGE.loc[must_this_with_ratio, 'ratio']
     #b) 目前仅剩下‘必备清仓’未考虑了，加上"必备清仓"，这里稍复杂，需要在本处根据GA输出各项目的比例，动态给出清仓项比例。
     tmp_consumption = get_consumed_amounts(part_solution)
     consumption_with_must_clean = sum(tmp_consumption) + sum(args.INGREDIENT_STORAGE.loc[args.INGREDIENT_MUST_CLEAN,'volume_of_storage'])
     for must_clean in args.INGREDIENT_MUST_CLEAN:
         part_solution.loc[must_clean, 'ratio'] = args.INGREDIENT_STORAGE.loc[must_clean, 'volume_of_storage']/consumption_with_must_clean
-    #c) 再根据消耗量反算其它项目，但显而易见这会影响到其他原为5%的项目，导致他们的比例更低：  #TODO：感觉不好解决
+    #c) 再根据消耗量反算其它项目，但显而易见这会影响到其他原为5%的项目，导致他们的比例更低：  #感觉不好解决, turn back
     part_solution.loc[tmp_consumption.index, 'ratio'] = tmp_consumption/consumption_with_must_clean
     full_solution = part_solution
     return full_solution
 
 def add_solution_with_must_ratio_only(part_solution):  #走这条路的话，注意需要确认已经把‘仅必选、必选且用光’两个都传给GA了，则此处只补充‘必备且有百分比’的项目。
-    for must_this in args.INGREDIENT_MUST_WITH_RATIO:
-        part_solution.loc[must_this, 'ratio'] = args.INGREDIENT_STORAGE.loc[must_this, 'ratio']  #TODO
+    for must_this_with_ratio in args.INGREDIENT_MUST_WITH_RATIO:
+        part_solution.loc[must_this_with_ratio, 'ratio'] = args.INGREDIENT_STORAGE.loc[must_this_with_ratio, 'ratio']  #TODO
     full_solution = part_solution
     return full_solution
 
@@ -158,7 +161,7 @@ def evaluation(args, this_solution, element_output):
     obj_dict = {}
     obj_dict['obj_consumed'] = obj_consumed
     obj_dict['obj_leftover'] = obj_leftover
-    obj_dict['oibj_leftover_01'] = obj_leftover_01
+    obj_dict['obj_leftover_01'] = obj_leftover_01
     obj_dict['obj_element_diff'] = obj_element_diff
     obj_dict['obj_element_01'] = obj_element_01
 
@@ -272,7 +275,7 @@ def pd_to_res(storage):
         this_dict['name'] = i[0]
         for this_attr in i[1].index: 
             key_attr = this_attr
-            if key_attr == 'required':   #这个key特殊处理一下true false
+            if key_attr == 'required' or key_attr == 'clean':   #这个key特殊处理一下true false
                 this_dict[key_attr] = True if i[1][this_attr] == 1 else False
             else:
                 this_dict[key_attr] = i[1][this_attr]
@@ -316,30 +319,118 @@ def compelete_basic_args(args):
         args.JUST_MUST_AND_MUST_CLEAN_COLUMNS.append(args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.index(i))
     return args
 
-#@app.route('/api/quick_adjust', methods=['POST', 'GET'])
+def oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRatio):
+    if oxygenMaterialRatio_2 > oxygenMaterialRatio_1:   #第二单的氧料比更大
+        if tmp_oxygenMaterialRatio>oxygenMaterialRatio_1 and tmp_oxygenMaterialRatio<oxygenMaterialRatio_2:
+            return True
+        else:
+            return False
+    else:
+        if tmp_oxygenMaterialRatio<oxygenMaterialRatio_1 and tmp_oxygenMaterialRatio>oxygenMaterialRatio_2:
+            return True
+        else:
+            return False
+       
+
+#@app.route('/api/quick_recommend', methods=['POST', 'GET'])
 #@cross_origin()
-def quick_adjust():   #API 4
+def quick_recommend():   #API 4   TODO:这个界面传进来的两张单子涉及到的volume of storage应该是当前订单单剩余的，考虑更新args中的INVENTORY，需要周工给传
     req_data = request.get_json()
     global args
 
-    _best_ratio_adjust_, _best_y_, solution_1, element_output = run_opt(args)
-    _best_ratio_adjust_, _best_y_, solution_2, element_output = run_opt(args)
+    #随便搜索两个:
+    solution_1 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
+    solution_2 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
+    solution_1['ratio'] = np.random.dirichlet(range(1,len(solution_1.index)+1))
+    solution_2['ratio'] = np.random.dirichlet(range(1,len(solution_2.index)+1))
 
-    def get_compose_solution(solution_1, solution_2):
-        compose_solution = solution_1
-        embed()
-        return compose_solution
+    solution_1['concat_this'] = 0
+    solution_1.loc[random.sample(list(solution_1.index), 2), 'concat_this'] = 1
+    solution_1 = solution_1.rename(index=str, columns={'leftover':'present_leftover'})
+  
+    def get_compose_solution_from_to(solution_2, solution_1):   #Compose from 2 to 1
+        status = 0
+        concat_solution = pd.DataFrame([])
+        concat_oxygen = np.array([])
+        oxygenMaterialRatio_1 = calc_oxygen(args, mixing(args, solution_1)[1])
+        oxygenMaterialRatio_2 = calc_oxygen(args, mixing(args, solution_2)[1])
+        #穷举计算所有compose solution
+        oxygenMaterialRatios = []
+        compose_solutions = []
+        compose_leftovers_sorter = []    #未消耗光的剩余项数量和原来一样，主要考察新混入的项目剩余量，越大说明影响后面生产的可能性越小，即越好
+        solution_1_short_types = solution_1[solution_1['concat_this'] == 1].index  #让用户选择需要衔接哪一个吧
+        solution_2_types_avaliable = list(set(solution_2.index) - set(solution_1.index))
+        if not (len(solution_1_short_types)<len(solution_2_types_avaliable)):
+            status = "除去相同项后(相同项目不存在衔接需求)，新配料单的其他可选项目已经不够！"
+            print(status)
+            print(solution_1)
+            print(solution_2)
+            return concat_solution, concat_oxygen, status
+        combinations_more_to_less = list(itertools.combinations(list(solution_2.loc[solution_2_types_avaliable].sort_values('leftover').index[::-1]), len(solution_1_short_types)))
+        solution_1_index_no_misc = list(set(solution_1.index) - set(args.NOT_COMPUTE))
+        #把新的2混到旧的1中
+        for i in combinations_more_to_less:
+            print("Searching...", i)
+            tmp_solution_1 = solution_1.drop(solution_1_short_types)   #每个旧的耗尽项都空出来
+            now_index = set(solution_1_index_no_misc) - set(solution_1_short_types)
+            for idx,j in enumerate(i):
+                tmp_solution_1.loc[j] = solution_2.loc[j]   #逐一换上另一个配方的每一项
+                tmp_solution_1.loc[j, 'concat_this'] = 1
+                now_index = now_index.union(set([j]))
+            #随机搜索配比组合：
+            for _ in range(300):
+                dirichlet_ratio = np.random.dirichlet(range(1, len(now_index)+1))*solution_1.loc[solution_1_index_no_misc, 'ratio'].sum()
+                tmp_solution_1.loc[now_index, 'ratio'] = dirichlet_ratio
+                #计算每一种组合的情况
+                tmp_solution_1, tmp_element_output = mixing(args, tmp_solution_1)   #mix之后就有新的消耗列了，然后在计算混入项的理论剩余（下面)
+                tmp_oxygenMaterialRatio = calc_oxygen(args, tmp_element_output)
+                #对于那些氧料比需要满足要求、最终物料存量也满足要求的才记录下来：
+                if oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRatio) and (solution_2.loc[list(i), 'leftover'] > tmp_solution_1.loc[list(i), 'consumed_amounts']).all() and (tmp_solution_1['ratio']>=0.05).all():
+                    compose_solutions.append(copy.deepcopy(tmp_solution_1))
+                    oxygenMaterialRatios.append(tmp_oxygenMaterialRatio)
+                    compose_leftovers_sorter.append(tmp_solution_1.loc[solution_1_index_no_misc, 'leftover'].sum())
+        #查找结束后看是否存在可行解，取出其中旧单子所有物料剩余最小的情况作为解：
+        if len(compose_solutions)>=1:
+            concat_solution = compose_solutions[np.array(compose_leftovers_sorter).argmin()]
+            concat_oxygen = oxygenMaterialRatios[np.array(compose_leftovers_sorter).argmin()]
+        else:
+            status = "衔接搜索结束，无法满足氧料比要求，可尝试再试一次或人工衔接"
+            print(status)
+            print(solution_1, oxygenMaterialRatio_1)
+            print(solution_2, oxygenMaterialRatio_2)
+        return concat_solution, concat_oxygen, status
+        #combinations_from_1 = list(itertools.permutations(solution_1_types_avaliable, len(solution_2_short_types)))
+        #combinations_from_2 = list(itertools.permutations(solution_2_types_avaliable, len(solution_1_short_types)))
+        #把新的2混到旧的1中
+        #for i in combinations_from_2:
+        #    tmp_solution_1 = solution_1.drop(solution_1_short_types)   #每个旧的耗尽项都空出来
+        #    for idx,j in enumerate(i):
+        #        tmp_solution_1.loc['%s*'%j] = solution_2.loc[j]   #逐一换上另一个配方的每一项
+        #        tmp_solution_1.loc['%s*'%j, 'ratio'] = solution_1_short_types_ratio[solution_1_short_types[idx]]
+        #    tmp_solution_1, compose_element_output = mixing(args, tmp_solution_1)   #mix之后就有新的消耗列了，然后在计算混入项的理论剩余（下面） 
+        #    for j in i:
+        #        tmp_solution_1.loc['%s*'%j, 'leftover'] = solution_2.loc[j, 'leftover'] - tmp_solution_1.loc['%s*'%j, 'consumed_amounts']
+        #    oxygenMaterialRatio = calc_oxygen(args, compose_element_output)
+        #    oxygenMaterialRatios.append(oxygenMaterialRatio)
+        #    compose_solutions.append(tmp_solution_1)
+        #for this_solution in compose_solutions:
+        #    compose_leftovers_sorter.append(sum(this_solution['leftover']))
+        #return compose_solutions, oxygenMaterialRatios, compose_leftovers_sorter
 
-    compose_solution = get_compose_solution(solution_1, solution_2)
-    compose_solution, compose_element_output = mixing(args, best_solution)
-    _, _best_y_ = evaluation(args, compose_solution, compose_element_output)
-
-    #计算氧料比：
-    oxygenMaterialRatio = calc_oxygen(compose_solution, args.Quality, args.Slag_Cu, args.Slag_S, args.Slag_Fe, args.Slag_SiO2, args.Flow, args.Fe2O3_vs_FeO)
+    #衔接，单项混入（单新入旧），穷举所有情况及其得分
+    #Note: 三个简化：1、剩下的N项按照其各自剩余量确定其比例（原则上为了尽可能同时用完）；2、必加一新项（原则上为了逐步衔接新的订单）；3、每次衔接不考虑“衔接之后再衔接”，即当前满足了氧料比落在之间开始生产，至于二次此次衔接是否会使得下次“氧料比区间”求解困难，不再过多考虑（实际上呼应了1,我们简化认为一次衔接后剩余的都是不需要处理的小量）；
+    #算法：从新单最大库存的物料开始搜索，占比5～30%，配合旧N项，氧料比落在两者之间即退出！若穷尽后无法满足，则不考虑数值约束，直接选择新料中Fe S含量最近的物料以原比例代替，并给出提示。
+    concat_solution, concat_oxygenMaterialRatio, status = get_compose_solution_from_to(solution_2, solution_1)
+    if status != 0:
+        return None
+    concat_solution = web_ratio_int(concat_solution)
+    concat_solution, concat_element_output = mixing(args, concat_solution)
+    concat_solution = web_consumption_int(concat_solution)
+    concat_oxygenMaterialRatio = calc_oxygen(args, concat_element_output)  #推荐
 
     #pandas to req_data
-    res_element = pd_to_res(compose_output)[0]
-    res_data = pd_to_res(compose_solution)
+    res_element = pd_to_res(concat_element_output)[0]
+    res_data = pd_to_res(concat_solution)
     new_res_element = [] 
     for key in res_element.keys(): 
         if key=='name':continue 
@@ -350,31 +441,45 @@ def quick_adjust():   #API 4
             res_data,
         "calculateParameter":
         {
-            "oxygenMaterialRatio": str(oxygenMaterialRatio),
-            "totalConsumedAmount": str(sum(compose_solution['consumed_amounts'])),
-            "totalLeftOver": str(sum(compose_solution['leftover'])),
-            "best_y": str(_best_y_),
+            "oxygenMaterialRatio": str(concat_oxygenMaterialRatio),
+            "totalConsumedAmount": str(sum(concat_solution['consumed_amounts'])),
+            "totalLeftOver": str(sum(concat_solution['leftover'])),
+            "best_y": "略",
         },
         "elementsMixtureList": 
             new_res_element
     }
-    res_data = {}
-    return jsonify(res_data)
+    return res_data
+    #return jsonify(res_data)
 
-#@app.route('/api/quick_update', methods=['POST', 'GET'])
-#@cross_origin()
-def quick_update(best_solution):   #API 3
+@app.route('/api/quick_update', methods=['POST', 'GET'])
+@cross_origin()
+def quick_update():   #API 3  NOTE这个页面调整项涉及到的物料，其所使用的库存应该是考虑上张单子的消耗，但本身这个调整是在配出配料单之后的动作，所以这应该是自然发生的，应该不需要和周工沟通
     req_data = request.get_json()
     global args
-    best_solution, element_output = mixing(args, best_solution)
-    _, _best_y_ = evaluation(args, best_solution, element_output)
-
-    #计算氧料比：
-    oxygenMaterialRatio = calc_oxygen(element_output, args.Quality, args.Slag_Cu, args.Slag_S, args.Slag_Fe, args.Slag_SiO2, args.Flow, args.Fe2O3_vs_FeO)
-
+    web_solution = req_to_pd(req_data)
+    old_ratio = copy.deepcopy(web_solution['ratio'])
+    #如果网页回传了adjustRatio，则接下来mix所用的ratio响应调整。
+    try:
+        for i in web_solution.iterrows():
+            if web_solution.loc[i[0], 'adjustRatio'] >= 0:
+                web_solution.loc[i[0], 'ratio'] = web_solution.loc[i[0], 'adjustRatio']
+                web_solution.loc[i[0], 'calculatePercentage'] = web_solution.loc[i[0], 'adjustRatio']
+            else:
+                web_solution.loc[i[0], 'adjustRatio'] = web_solution.loc[i[0], 'ratio']
+    except:
+        pass
+    web_solution = web_ratio_int(web_solution)
+    adjust_solution, element_output = mixing(args, web_solution)
+    adjust_solution = web_consumption_int(adjust_solution)
+    _, _y_ = evaluation(args, adjust_solution, element_output)
+    
+    #计算氧料比update：
+    oxygenMaterialRatio = calc_oxygen(args, element_output)
     #pandas to req_data
+    adjust_solution['ratio'] = old_ratio
+    res_data = pd_to_res(adjust_solution)
     res_element = pd_to_res(element_output)[0]
-    res_data = pd_to_res(best_solution)
     new_res_element = [] 
     for key in res_element.keys(): 
         if key=='name':continue 
@@ -386,28 +491,69 @@ def quick_update(best_solution):   #API 3
         "calculateParameter":
         {
             "oxygenMaterialRatio": str(oxygenMaterialRatio),
-            "totalConsumedAmount": str(sum(best_solution['consumed_amounts'])),
-            "totalLeftOver": str(sum(best_solution['leftover'])),
-            "best_y": str(_best_y_),
+            "totalConsumedAmount": str(sum(adjust_solution['consumed_amounts'])),
+            "totalLeftOver": str(sum(adjust_solution['leftover'])),
+            "best_y": str(_y_),
         },
         "elementsMixtureList": 
             new_res_element
     }
-    res_data = {}
     return jsonify(res_data)
+
+def req_to_pd(req_data):
+    pd_data = pd.DataFrame()
+    for i in req_data['list']: 
+        pd_data = pd_data.append(pd.DataFrame(data=i, index=[i['name']]))
+    try:
+        pd_data.clean = pd_data.clean+0
+    except:
+        pass
+    try:
+        pd_data.required = pd_data.required+0  #这样就把网页传回来的true false改成 01 了
+    except:
+        pass
+    try:
+        pd_data['ratio'] = pd_data['calculatePercentage']  #这样就把网页传回来的calcPrecent 改成了ratio
+    except:
+        pass
+    return pd_data
+
+#Web Show INT:
+def web_ratio_int(best_solution):
+    interger_ratio = np.round(best_solution.ratio, 2)
+    need_to_add = int(np.round((1-interger_ratio.sum())*100))
+    if need_to_add!=0:
+        #各项余数tmp
+        drifts = best_solution.ratio - interger_ratio
+        drifts_ascending = drifts.sort_values()
+        if need_to_add>0: #不到100%需要补充 
+            for i in range(abs(need_to_add)): 
+                interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
+                print("Adding ", drifts_ascending.index[-(i+1)])
+        else:  # need_to_add<0:
+            for i in range(abs(need_to_add)): 
+                interger_ratio[drifts_ascending.index[i]] -= 0.01
+                print("Cutting ", drifts_ascending.index[i])
+    best_solution.ratio = np.round(interger_ratio, 6)
+    return best_solution
+
+def web_consumption_int(best_solution):
+    best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(best_solution)).astype(int), 0, best_solution['volume_of_storage'])
+    best_solution['leftover'] = best_solution['volume_of_storage'] - best_solution['consumed_amounts']
+    #for index,content in best_solution.iterrows():   #如果页面上想展示detial：
+    #    best_solution.loc[index, 'ratio'] = str(best_solution.loc[index, 'ratio'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
+    return best_solution
 
 @app.route('/api/calculate', methods=['POST', 'GET'])
 @cross_origin()
-def calculate():    #API 2
+def calculate():    #API 2, 接收的配料基础数据是当前的库存，周工必须这么传给我
     req_data = request.get_json()
     global args
 
     #req_data to pd:
-    args.INGREDIENT_STORAGE = pd.DataFrame()
-    for i in req_data['list']: 
-        args.INGREDIENT_STORAGE = args.INGREDIENT_STORAGE.append(pd.DataFrame(data=i, index=[i['name']]))
-    args.INGREDIENT_STORAGE.required = args.INGREDIENT_STORAGE.required+0  #这样就把网页传回来的true false改成 01 了
-    args.INGREDIENT_STORAGE['ratio'] = args.INGREDIENT_STORAGE['calculatePercentage']  #这样就把网页传回来的calcPrecent 改成了ratio
+    pd_data = req_to_pd(req_data)
+    args.INGREDIENT_STORAGE = pd_data
+
     args.epoch = req_data['presetParameter']['gaEpoch']
     args.pop = int(int(req_data['presetParameter']['gaPop']/2)*2)
     args.alpha = req_data['presetParameter']['modelFactorAlpha']
@@ -435,33 +581,14 @@ def calculate():    #API 2
     args = compelete_basic_args(args)
 
     #Call GA:
-    _best_ratio_adjust_, _best_y_, best_solution, element_output = run_opt(args)
+    _best_ratio_adjust_, _y_, best_solution, element_output = run_opt(args)
     raw_ratio = best_solution['ratio']
     best_solution = best_solution.loc[best_solution.ratio!=0]
     best_solution = pd.concat((best_solution, args.INGREDIENT_STORAGE.loc[best_solution.index, args.ELEMENTS+['volume_of_storage','number']]), axis=1)
-    #Web Show INT:
-    def web_show_int(best_solution):
-        interger_ratio = np.round(best_solution.ratio, 2)
-        need_to_add = int((1-interger_ratio.sum())*100)
-        if need_to_add!=0:
-            #各项余数tmp
-            drifts = best_solution.ratio - interger_ratio
-            drifts_ascending = drifts.sort_values()
-            if need_to_add>0: #不到100%需要补充 
-                for i in range(abs(need_to_add)): 
-                    interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
-                    print("Adding ", drifts_ascending.index[-(i+1)])
-            else:  # need_to_add<0:
-                for i in range(abs(need_to_add)): 
-                    interger_ratio[drifts_ascending.index[i]] -= 0.01
-                    print("Cutting ", drifts_ascending.index[i])
-        best_solution.ratio = np.round(interger_ratio, 2)
-        best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(best_solution)).astype(int), 0, best_solution['volume_of_storage'])
-        best_solution['leftover'] = best_solution['volume_of_storage'] - best_solution['consumed_amounts']
-        #for index,content in best_solution.iterrows():   #如果页面上想展示detial：
-        #    best_solution.loc[index, 'ratio'] = str(best_solution.loc[index, 'ratio'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
-        return best_solution
-    best_solution = web_show_int(best_solution)
+    best_solution = web_ratio_int(best_solution)
+    best_solution, element_output = mixing(args, best_solution)
+    best_solution = web_consumption_int(best_solution)
+    _, _y_ = evaluation(args, best_solution, element_output)
 
     #计算氧料比：
     args.Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
@@ -471,7 +598,7 @@ def calculate():    #API 2
     args.Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
     args.Flow = 150
     args.Fe2O3_vs_FeO = 0.4
-    oxygenMaterialRatio = calc_oxygen(element_output, args.Quality, args.Slag_Cu, args.Slag_S, args.Slag_Fe, args.Slag_SiO2, args.Flow, args.Fe2O3_vs_FeO)
+    oxygenMaterialRatio = calc_oxygen(args, element_output)
 
     #pandas to req_data
     res_element = pd_to_res(element_output)[0]
@@ -489,26 +616,35 @@ def calculate():    #API 2
             "oxygenMaterialRatio": str(oxygenMaterialRatio),
             "totalConsumedAmount": str(sum(best_solution['consumed_amounts'])),
             "totalLeftOver": str(sum(best_solution['leftover'])),
-            "best_y": str(_best_y_),
+            "best_y": str(_y_),
         },
         "elementsMixtureList": 
             new_res_element
     }
 
-    #quick_update(best_solution)
-    quick_adjust()
-
+    res_data = quick_recommend()
     return jsonify(res_data)
 
 @app.route('/api/getInventory', methods=['GET'])
 @cross_origin()
-def getInventory():    #API 1
+def getInventory():    #API 1    演示版，实际不需要
     global args
     #获取库存 for 显示
     inventory_storage = get_storage(for_show=True)
     #pandas to res_data
     res_data = pd_to_res(inventory_storage)
+    def compute_element_mean(args, inventory_storage):
+        new_res_element = []
+        for this_element in args.ELEMENTS:
+            new_res_element.append({'name': this_element, 'percentage': np.round(sum(inventory_storage.loc[list(set(inventory_storage.index) - set(args.NOT_COMPUTE)), 'volume_of_storage']*inventory_storage.loc[list(set(inventory_storage.index) - set(args.NOT_COMPUTE)), this_element]) / sum(inventory_storage.loc[list(set(inventory_storage.index) - set(args.NOT_COMPUTE)), 'volume_of_storage']), 2)})
+        return new_res_element
 
+    res_data = {
+        "list": 
+            res_data,
+        'materialList': 
+            compute_element_mean(args, inventory_storage)
+    }
     return jsonify(res_data)
 
 
@@ -525,7 +661,8 @@ if __name__ == '__main__':
     parser.add_argument("-G", '--gama', type=int, default=1)  #default=3~4  ~=2*alpha+1*beta
     parser.add_argument("-T", '--threads', type=int, default=int(cpu_count()/2))
     parser.add_argument("-M", '--MAX_TYPE_TO_SEARCH', type=int, default=4)
-    parser.add_argument("-ELEMENTS", '--ELEMENTS', type=list, default=['Cu', 'Fe', 'S', 'SiO2', 'CaO', 'As', 'Zn', 'Pb', 'MgO', 'Al2O3', 'H2O'])
+    parser.add_argument("--NOT_COMPUTE", type=list, default=['渣精矿烟灰'])
+    parser.add_argument("-ELEMENTS", '--ELEMENTS', type=list, default=['Cu', 'Fe', 'S', 'SiO2', 'CaO', 'As', 'Zn', 'Pb', 'MgO', 'Al2O3', 'H2O', 'Sb', 'Bi', 'Ni', 'Ag', 'Au'])
     #parser.add_argument("-ELEMENT_MATTERS", '--ELEMENT_MATTERS', type=list, default=['Cu', 'Fe', 'S', 'SiO2', 'CaO', 'As', 'Zn', 'Pb', 'MgO', 'Al2O3', 'H2O'])
     parser.add_argument("-ELEMENT_MATTERS", '--ELEMENT_MATTERS', type=list, default=['Cu', 'As'])
     args = parser.parse_args()
