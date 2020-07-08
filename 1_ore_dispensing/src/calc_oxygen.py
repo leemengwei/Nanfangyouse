@@ -5,7 +5,6 @@ import os,sys,time
 import glob
 from IPython import embed
 import itertools
-from time_counter import calc_time
 import numpy as np
 import copy
 #from chempy import Substance
