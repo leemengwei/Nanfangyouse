@@ -88,23 +88,6 @@ def get_constraints(args):   #Constraints are weak.
     constraint_ueq = []   #不注释则清空ueq constraint, 使用上下限lb ub 5-100就可以不注释
     return constraint_eq, constraint_ueq
 
-def run_opt_map(struct):   #map需要，多线程调用GA
-    num = struct[0]
-    args = struct[1]
-    for i in range(100):
-        seed = int(str(time.time()).split('.')[-1])
-        time.sleep(seed/1e9)
-        np.random.seed(seed)
-    print("Process:", num, seed)
-    print("Optimization %s, Dimension %s"%(num, args.NUM_OF_TYPES_FOR_GA))
-    constraint_eq, constraint_ueq = get_constraints(args)
-    GAwrapper.is_vector = args.IS_VECTOR
-    #整数规划，要求某个变量的取值可能个数是2^n，2^n=128, 96+32=128, 则上限为132
-    #考虑一步到位,所有物料参与选择,下限为0
-    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.POP, max_iter=args.EPOCH, lb=args.lower_bounds, ub=args.upper_bounds, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=args.precisions, prob_mut=0.01)
-    best_gax, best_gay = ga.run()
-    return best_gax, best_gay
-
 def GAwrapper(ga_outcomes):   #ga_outcomes是遗传算法给过来的,是需要优化得到的各种真实值:ground_truth.
     global args
     ga_outcomes = ga_outcomes.reshape(-1, args.NUM_OF_TYPES_FOR_GA)
@@ -125,25 +108,44 @@ def GAwrapper(ga_outcomes):   #ga_outcomes是遗传算法给过来的,是需要�
         scores = scores[0]
     return scores
 
+#def run_opt_map(struct):   #map需要，多线程调用GA
+#    num = struct[0]
+#    args = struct[1]
+#    for i in range(100):
+#        seed = int(str(time.time()).split('.')[-1])
+#        time.sleep(seed/1e9)
+#        np.random.seed(seed)
+#    print("Process:", num, seed)
+#    print("Optimization %s, Dimension %s"%(num, args.NUM_OF_TYPES_FOR_GA))
+#    constraint_eq, constraint_ueq = get_constraints(args)
+#    GAwrapper.is_vector = args.IS_VECTOR
+#    #整数规划，要求某个变量的取值可能个数是2^n，2^n=128, 96+32=128, 则上限为132
+#    #考虑一步到位,所有物料参与选择,下限为0
+#    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.POP, max_iter=args.EPOCH, lb=args.lower_bounds, ub=args.upper_bounds, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=args.precisions, prob_mut=0.01)
+#    best_gax, best_gay = ga.run()
+#    return best_gax, best_gay
+
 def run_opt(args):
-    if args.THREADS != 1:
-        print("Multi thread...Vector mode: %s"%args.IS_VECTOR)
-        blobs = []
-        pool = Pool(processes=int(cpu_count()/2))   #这个固定死，效率最高,跟做多少次没关系
-        struct_list = []
-        for i in range(args.THREADS):  #做threads次
-            struct_list.append([i, args])
-        rs = pool.map(run_opt_map, struct_list) #CORE
-        pool.close()
-        pool.join()
-        return
-    else:
-        print("Single thread... Vector mode: %s"%args.IS_VECTOR)
+#    if args.THREADS != 1:
+#        print("Multi thread...Vector mode: %s"%args.IS_VECTOR)
+#        blobs = []
+#        pool = Pool(processes=int(cpu_count()/2))   #这个固定死，效率最高,跟做多少次没关系
+#        struct_list = []
+#        for i in range(args.THREADS):  #做threads次
+#            struct_list.append([i, args])
+#        rs = pool.map(run_opt_map, struct_list) #CORE
+#        pool.close()
+#        pool.join()
+#        return
+#    else:
+        print("Single thread (Always in metal balancing)... Vector mode: %s"%args.IS_VECTOR)
+        print(args)
         constraint_eq, constraint_ueq = get_constraints(args)
         GAwrapper.is_vector = args.IS_VECTOR
         #考虑一步到位,所有物料参与选择,下限为0
         ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.POP, max_iter=args.EPOCH, lb=args.lower_bounds, ub=args.upper_bounds, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=args.precisions, prob_mut=0.01)
         best_gax, best_gay = ga.run()
+        embed()
         return
 
 if __name__ == '__main__':
@@ -151,9 +153,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-S", '--ON_SERVER', action='store_true', default=False)
     parser.add_argument('--COAL_T', type=float, default=1.5)
-    parser.add_argument('-T', '--THREADS', type=int, default=min(2, int(cpu_count()/2)))
-    parser.add_argument("-E", '--EPOCH', type=int, default=50)
-    parser.add_argument("-P", '--POP', type=int, default=100)
+    parser.add_argument("-E", '--EPOCH', type=int, default=100)
+    parser.add_argument("-P", '--POP', type=int, default=10000)
     parser.add_argument('--WEIGHT_VOLUME', type=int, default=1/4)   #volume (T)
     parser.add_argument("--WEIGHT_CU_PERCENTAGE", type=int, default=1/4)  #Cu percentage (%)
     parser.add_argument("--WEIGHT_AU_PERCENTAGE", type=int, default=1/4)  #Au percentage (%)
