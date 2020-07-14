@@ -3,7 +3,7 @@
 # @Time    : 2019/8/20
 # @Author  : github.com/guofei9987
 
-
+from IPython import embed
 import numpy as np
 from .base import SkoBase
 from sko.tools import func_transformer
@@ -70,7 +70,7 @@ class GeneticAlgorithmBase(SkoBase, metaclass=ABCMeta):
     def mutation(self):
         pass
 
-    def run(self, max_iter=None):
+    def run(self, max_iter=None):   #GA base
         self.max_iter = max_iter or self.max_iter
         for i in range(self.max_iter):
             self.X = self.chrom2x(self.Chrom)
@@ -133,7 +133,7 @@ class GA(GeneticAlgorithmBase):
     https://github.com/guofei9987/scikit-opt/blob/master/examples/demo_ga.py
     """
 
-    def __init__(self, func, n_dim,
+    def __init__(self, func, n_dim,     #GA
                  size_pop=50, max_iter=200,
                  prob_mut=0.001,
                  lb=-1, ub=1,
@@ -147,7 +147,6 @@ class GA(GeneticAlgorithmBase):
         # Lind is the num of genes of every variable of func（segments）
         Lind_raw = np.log2((self.ub - self.lb) / self.precision + 1)
         self.Lind = np.ceil(Lind_raw).astype(int)
-
         # if precision is integer:
         # if Lind_raw is integer, which means the number of all possible value is 2**n, no need to modify
         # if Lind_raw is decimal, we need ub_extend to make the number equal to 2**n,
@@ -305,7 +304,7 @@ class GA_TSP(GeneticAlgorithmBase):
     crossover = crossover.crossover_pmx
     mutation = mutation.mutation_reverse
 
-    def run(self, max_iter=None):
+    def run(self, max_iter=None):  #GA_TSP
         self.max_iter = max_iter or self.max_iter
         for i in range(self.max_iter):
             Chrom_old = self.Chrom.copy()
