@@ -118,14 +118,13 @@ def evaluation(ga_T, ga_Cu, ga_Au, ga_Ag):
     else:
         scores = scores[0]
     #record:
-    if args.HISTORY:
-        args.T_prob_history.append(T_prob) 
-        args.Cu_prob_history.append(Cu_prob) 
-        args.Au_prob_history.append(Au_prob) 
-        args.Ag_prob_history.append(Ag_prob) 
-        args.Cu_balance_history.append(Cu_balance)
-        args.Au_balance_history.append(Au_balance)
-        args.Ag_balance_history.append(Ag_balance)
+    args.T_prob_history.append(T_prob) 
+    args.Cu_prob_history.append(Cu_prob) 
+    args.Au_prob_history.append(Au_prob) 
+    args.Ag_prob_history.append(Ag_prob) 
+    args.Cu_balance_history.append(Cu_balance)
+    args.Au_balance_history.append(Au_balance)
+    args.Ag_balance_history.append(Ag_balance)
     return scores
 
 def run_opt(args):
@@ -158,15 +157,14 @@ def correct_data():    #API
 
     #优化部分
     best_x, best_y = run_opt(args)
-    if args.HISTORY:
-        #把history pop一下，去掉最后一个单独的best。 
-        last_T_prob = args.T_prob_history.pop()[0]
-        last_Cu_prob = args.Cu_prob_history.pop()[0]
-        last_Au_prob = args.Au_prob_history.pop()[0]
-        last_Ag_prob = args.Ag_prob_history.pop()[0]
-        last_Cu_balance = args.Cu_balance_history.pop()[0]
-        last_Au_balance = args.Au_balance_history.pop()[0]
-        last_Ag_balance = args.Ag_balance_history.pop()[0]
+    #把history pop一下，去掉最后一个单独的best。 
+    last_T_prob = args.T_prob_history.pop()[0]
+    last_Cu_prob = args.Cu_prob_history.pop()[0]
+    last_Au_prob = args.Au_prob_history.pop()[0]
+    last_Ag_prob = args.Ag_prob_history.pop()[0]
+    last_Cu_balance = args.Cu_balance_history.pop()[0]
+    last_Au_balance = args.Au_balance_history.pop()[0]
+    last_Ag_balance = args.Ag_balance_history.pop()[0]
 
     #从各自的既定位置取出
     best_x = best_x.reshape(-1, args.NUM_OF_TYPES_FOR_GA)
@@ -205,7 +203,6 @@ def correct_data():    #API
 if __name__ == '__main__':
     doc = '金属平衡需要解决‘什么样的真实值最优可能获得目前的观测值’的最大似然问题～求解过程见doc文档，此处从目标函数开始编程。'
     parser = argparse.ArgumentParser()
-    parser.add_argument('--COAL_T', type=float, default=1.5)
     parser.add_argument("-E", '--EPOCH', type=int, default=100)
     parser.add_argument("-P", '--POP', type=int, default=2000)
     parser.add_argument('--WEIGHT_T_VOLUME', type=int, default=1)   #volume (T)
@@ -213,23 +210,20 @@ if __name__ == '__main__':
     parser.add_argument("--WEIGHT_AU_PERCENTAGE", type=int, default=1) 
     parser.add_argument("--WEIGHT_AG_PERCENTAGE", type=int, default=1) 
     parser.add_argument("--WEIGHT_BALANCE", type=int, default=1) # for Cu, Au, Ag
-    parser.add_argument("-M", '--MAX_TYPE_TO_SEARCH', type=int, default=10)
     parser.add_argument("-V", '--IS_VECTOR', action='store_true', default=False)
     parser.add_argument('--PLOT', action='store_true', default=False)
-    parser.add_argument('--HISTORY', action='store_true', default=False)
     parser.add_argument("--NEED_TO_CORRECT", type=list, default=['currentBalanceDry','currentBalancePercentageCu','currentBalanceUnitageAg','currentBalanceUnitageAu'])
     args = parser.parse_args()
 
     epsilon = 1e-9
     args.AUTO_WEIGHTS = {}
-    if args.HISTORY:
-        args.T_prob_history = []
-        args.Cu_prob_history = []
-        args.Au_prob_history = []
-        args.Ag_prob_history = []
-        args.Cu_balance_history = []
-        args.Au_balance_history = []
-        args.Ag_balance_history = []
+    args.T_prob_history = []
+    args.Cu_prob_history = []
+    args.Au_prob_history = []
+    args.Ag_prob_history = []
+    args.Cu_balance_history = []
+    args.Au_balance_history = []
+    args.Ag_balance_history = []
 
     app.run(host='0.0.0.0', port=7001, debug=True)
 

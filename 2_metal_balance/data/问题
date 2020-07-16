@@ -3,3 +3,21 @@
 3、excel中回收率再明确。
 4、excel中熔炼炉车间，既然只有‘原料&中间物料’，具体明确哪个是平衡的两端。
 5、具体哪些是输出那些是输入？
+
+
+
+
+1、项目工程：/mfs/home/limengwei/Nanfangyouse/2_metal_balance，src下运行：python build_model.py  --PLOT -V, 默认使用SERVER模式，-V为enable矢量计算。默认2000个POP，100个EPOCH。
+完整参数
+usage: build_model.py [-h] [-E EPOCH] [-P POP]
+                      [--WEIGHT_T_VOLUME WEIGHT_T_VOLUME]
+                      [--WEIGHT_CU_PERCENTAGE WEIGHT_CU_PERCENTAGE]
+                      [--WEIGHT_AU_PERCENTAGE WEIGHT_AU_PERCENTAGE]
+                      [--WEIGHT_AG_PERCENTAGE WEIGHT_AG_PERCENTAGE]
+                      [--WEIGHT_BALANCE WEIGHT_BALANCE] [-V] [--PLOT]
+                      [--NEED_TO_CORRECT NEED_TO_CORRECT]
+
+2、用法：a）启动服务端；b）网页打开，导入数据，数据在data/2-4假数据；c）点击数据校正；
+3、目前问题：a）目前现场给到的数据还是不完整，data/2-4假数据是我按照一些我的理解凑出来的，数据中还有很多的细节问题；b）目前铜、金、银回收率的三个框计算有问题，暂略。c）目前页面上计算后显示的铜T金kg银kg回收率为各自的平衡差距；d）方差、上下限均为我自己按固定规则给定；e)目前针对与熔炼厂，我把所有之前的分类如‘原料、中间物料、回收、产品’的分类改成了‘输入、输出’，具体如何参与计算可在web端选择；f）web端支持一些数据的导入、编辑、对比、导出、类型选择功能，但目前不支持设置方差、上下限（我程序里自己给）。
+
+
