@@ -51,15 +51,17 @@ def get_constraints(args):   #Constraints are weak.
     constraint_ueq = []   #不注释则清空ueq constraint, 使用上下限lb ub 5-100就可以不注释
     return constraint_eq, constraint_ueq
 
+
 def adjust_GA_ratio(args, their_ratio):
-    their_ratio = their_ratio*(1-sum(args.INGREDIENT_MUST_WITH_RATIO['ratio'])) #GA生成的概率sum是100%，但有时可能有“必选且指定比例”项目存在，GA内部仅在5%阈值上是考虑了这个因素的，所以在mix之前调整一下
+    their_ratio = their_ratio*(1-sum(args.INGREDIENT_MUST_WITH_RATIO['ratio'].values)) #GA生成的概率sum是100%，但有时可能有“必选且指定比例”项目存在，GA内部仅在5%阈值上是考虑了这个因素的，所以在mix之前调整一下
     return their_ratio
 
 def GAwrapper(their_ratio):   #their_ratio是遗传算法给过来的, GA算法本身的API要求, TODO:their_ratio是一个个给回来的，准备矢量化
     start = time.time()
-    global args
+    #global args
     their_ratio = adjust_GA_ratio(args, their_ratio)
-    global this_solution
+    time_0 = time.time()
+    #global this_solution
     this_solution = generate_full_solution(their_ratio)   #加上must with ratio项
     time_1 = time.time()
     this_solution, element_output = mixing(args, this_solution)
@@ -67,7 +69,8 @@ def GAwrapper(their_ratio):   #their_ratio是遗传算法给过来的, GA算法�
     global obj_dict
     obj_dict, scores = evaluation(args, this_solution, element_output)
     time_3 = time.time()
-    print('1:',100*(time_1-start)/(time.time()-start), '%')
+    print('0:',100*(time_0-start)/(time.time()-start), '%')
+    print('1:',100*(time_1-time_0)/(time.time()-start), '%')
     print('2:',100*(time_2-time_1)/(time.time()-start), '%')
     print('3:',100*(time_3-time_2)/(time.time()-start), '%')
     print('ALl:', time.time()-start)
@@ -86,10 +89,10 @@ def get_storage(for_show=False):
         ingredient_storage = pd.read_csv("../data/1_INVENTORY_STORAGE_CHOOSE_FROM.csv", index_col='name')
     for this_element in args.ELEMENTS:
         ingredient_storage[this_element] = np.round(ingredient_storage[this_element], 6)
-    which_is_time = np.where(ingredient_storage.columns=='when_comes_in')[0][0]
+    #which_is_time = np.where(ingredient_storage.columns=='when_comes_in')[0][0]
     #str to datetime
-    for row_idx,row in enumerate(ingredient_storage.iterrows()):
-        ingredient_storage.iloc[row_idx, which_is_time] = datetime.datetime.strptime(row[1].when_comes_in, "%Y/%m/%d %H:%M")
+    #for row_idx,row in enumerate(ingredient_storage.iterrows()):
+    #    ingredient_storage.iloc[row_idx, which_is_time] = datetime.datetime.strptime(row[1].when_comes_in, "%Y/%m/%d %H:%M")
     return ingredient_storage
 
 def get_elements_boundary(args):
@@ -106,11 +109,11 @@ def load_solution():
     return SOLUTION
 
 def generate_full_solution(their_ratio):
-    part_solution = copy.deepcopy(args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN)
+    part_solution = args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN
     part_solution['ratio'] = their_ratio
     #加上必备行
-    part_solution = add_solution_with_must_with_ratio_only(part_solution)  #GA出来已有‘仅必选’&‘必清空’
-    return part_solution
+    full_solution = add_solution_with_must_with_ratio_only(part_solution)  #GA出来已有‘仅必选’&‘必清空’
+    return full_solution
 
 #def add_solution_with_must_ratio_and_must_clean(part_solution):    #决定不走这条路了，还是把‘仅必选、必选且用光’两个都传给GA，之后对后者再惩罚吧。
 #    #a) GA出来已经包含了’仅必备’，这里首先考虑加上‘必备且有百分比’的行：
@@ -131,6 +134,7 @@ def add_solution_with_must_with_ratio_only(part_solution):  #目前走这条路�
     #for must_this_with_ratio in args.INGREDIENT_MUST_WITH_RATIO.index:
     #    part_solution.loc[must_this_with_ratio, 'ratio'] = args.INGREDIENT_STORAGE.loc[must_this_with_ratio, 'ratio'] 
     #full_solution = part_solution
+    np.concatenate([part_solution.values, args.INGREDIENT_MUST_WITH_RATIO.values])
     return full_solution
 
 def get_consumed_amounts(this_solution):
@@ -153,6 +157,7 @@ def mixing(args, this_solution):
     this_solution['consumed_amounts'] = get_consumed_amounts(this_solution)
     this_solution['leftover'] = args.INGREDIENT_STORAGE.loc[this_solution.index, 'volume_of_storage'] - this_solution['consumed_amounts']
     this_solution['productionTime'] = np.round(this_solution['consumed_amounts']/(this_solution['ratio']*args.Flow), 2)
+    this_solution['productionTime'] = np.round(this_solution['volume_of_storage']/(this_solution['ratio']*args.Flow), 2)
     return this_solution, element_output
 
 def evaluation(args, this_solution, element_output):
@@ -220,10 +225,10 @@ def run_opt_map(struct):   #map需要，多线程调用GA
     #GAwrapper.is_vector=True
     #整数规划，要求某个变量的取值可能个数是2^n，2^n=128, 96+32=128, 则上限为132
     #考虑一步到位,所有物料参与选择,下限为0
-    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.01, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['ratio']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['ratio']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
     best_gax, best_gay = ga.run()
     best_ratio = best_gax/best_gax.sum()
-    best_solution = copy.deepcopy(this_solution)
+    best_solution = generate_full_solution(best_ratio)
     best_solution.loc[args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.index, 'ratio'] = best_ratio
 
     Y_history = pd.DataFrame(ga.all_history_Y)
@@ -238,7 +243,7 @@ def run_rand(args):
     best_ys = []
     for i in range(args.threads):  #多线程跑几次这里就跑几次
         constraint_eq, constraint_ueq = get_constraints(args)
-        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.01, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['ratio']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['ratio']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
         best_gax, best_gay = ga.run()
         best_ys.append(best_gay[0])
     best_ys = np.array(best_ys)
@@ -282,10 +287,10 @@ def pd_to_res(storage):
         this_dict['name'] = i[0]
         for this_attr in i[1].index: 
             key_attr = this_attr
-            if key_attr == 'required' or key_attr == 'clean' or key_attr == 'cohesion':   #这个key特殊处理一下true false
-                this_dict[key_attr] = True if i[1][this_attr] == 1 else False
-            else:
-                this_dict[key_attr] = i[1][this_attr]
+            #if key_attr == 'required' or key_attr == 'clean' or key_attr == 'cohesion':   #这个key特殊处理一下true false
+            #    this_dict[key_attr] = True if i[1][this_attr] == 1 else False
+            #else:  #貌似不特殊处理才对,特殊处理会影响可编辑性。
+            this_dict[key_attr] = i[1][this_attr]
             if key_attr in key_copying.keys():
                 key_attr = key_copying[key_attr]
                 this_dict[key_attr] = i[1][this_attr]    #copy to another one
@@ -301,7 +306,7 @@ def compelete_basic_args(args):
     args.INGREDIENT_MUST_WITH_RATIO = args.INGREDIENT_STORAGE.loc[list(set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.required!=0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.ratio!=0].index))]   #必选比例以定
     args.INGREDIENT_MUST_CLEAN = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.clean!=0].index)]  #必选且必须清空该料
     args.INGREDIENT_JUST_MUST = args.INGREDIENT_STORAGE.loc[list(set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.required!=0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.ratio==0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.clean==0].index))]  #必选但不指定比例
-    args.INGREDIENT_CHOOSE_FROM = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.required==0].index)]
+    args.INGREDIENT_CHOOSE_FROM = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[(args.INGREDIENT_STORAGE.required+args.INGREDIENT_STORAGE.clean)==0].index)]
     args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_CHOOSE_FROM.index) + list(args.INGREDIENT_JUST_MUST.index)]
     args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_WITH_RATIO = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_CHOOSE_FROM.index) + list(args.INGREDIENT_JUST_MUST.index) + list(args.INGREDIENT_MUST_WITH_RATIO.index)]
     args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_CHOOSE_FROM.index) + list(args.INGREDIENT_JUST_MUST.index) + list(args.INGREDIENT_MUST_CLEAN.index)]
@@ -344,23 +349,35 @@ def oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRa
 def getFormula():   #NOTE: temporary  # API 0-2
     #随便搜索两个:
     global args
-    solution_1 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
-    solution_2 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
-    solution_1['ratio'] = np.random.dirichlet(range(1,len(solution_1.index)+1))
-    solution_2['ratio'] = np.random.dirichlet(range(1,len(solution_2.index)+1))
-    solution_1['cohesion'] = 0    #NOTE , temporary
-    solution_2['cohesion'] = 0    #NOTE , temporary
-    solution_1 = web_ratio_int(solution_1)
-    solution_2 = web_ratio_int(solution_2)
-    solution_1, element_output_1 = mixing(args, solution_1)
-    solution_2, element_output_2 = mixing(args, solution_2)
-    solution_1 = web_consumption_int(solution_1)
-    solution_2 = web_consumption_int(solution_2)
+    if os.path.exists('../data/solution_1.csv') and os.path.exists('../data/solution_2.csv'):
+        solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
+        solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
+        #embed()
+        _, element_output_1 = mixing(args, copy.deepcopy(solution_1))
+        _, element_output_2 = mixing(args, copy.deepcopy(solution_2))
+        print("Solution read in")
+    else:
+        solution_1 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
+        solution_2 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
+        solution_1['ratio'] = np.random.dirichlet(range(1,len(solution_1.index)+1))
+        solution_2['ratio'] = np.random.dirichlet(range(1,len(solution_2.index)+1))
+        solution_1['cohesion'] = 0    #NOTE , temporary
+        solution_2['cohesion'] = 0    #NOTE , temporary
+        solution_1 = web_ratio_int(solution_1)
+        solution_2 = web_ratio_int(solution_2)
+        solution_1, element_output_1 = mixing(args, solution_1)
+        solution_2, element_output_2 = mixing(args, solution_2)
+        solution_1 = web_consumption_int(solution_1)
+        solution_2 = web_consumption_int(solution_2)
+        solution_1.to_csv("../data/solution_1.csv")
+        solution_2.to_csv("../data/solution_2.csv")
+        print("Randomly generated")
  
     solution_1['formula'] = '1'
     solution_2['formula'] = '2'
     oxygenMaterialRatio_1, Matte_T1, Slag_T1, Wind_Flux1, SiO2_T1 = calc_oxygen(args, element_output_1)
     oxygenMaterialRatio_2, Matte_T2, Slag_T2, Wind_Flux2, SiO2_T2 = calc_oxygen(args, element_output_2)
+    embed()
 
     res_data1 = pd_to_res(solution_1)
     res_data2 = pd_to_res(solution_2)
@@ -431,10 +448,11 @@ def quick_recommend():   #API 3
         combinations_more_to_less = list(itertools.combinations(list(solution_2.loc[solution_2_types_avaliable].sort_values('leftover').index[::-1]), len(solution_1_short_types)))
         combinations_more_to_less.insert(0, '')   #添加一个空项目进来，即‘不混入任何配方2’。
         #把新的2混到旧的1中
+        print(combinations_more_to_less)
         for i in combinations_more_to_less:
-            print("Searching... +", i)
             tmp_solution_1 = copy.deepcopy(solution_1.drop(solution_1_short_types))   #每个旧的耗尽项都空出来
-            tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]])  #接上新加的项
+            #tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]])  #接上新加的项
+            print("Searching... +", i, tmp_solution_1.index)
             #随机搜索配比组合：
             for _ in tqdm.tqdm(range(500)):
                 tmp_solution_1['ratio'] = np.random.dirichlet(range(1, len(tmp_solution_1)+1))
@@ -583,21 +601,24 @@ def req_to_pd(req_list):
 
 #Web Show INT:
 def web_ratio_int(best_solution):
-    interger_ratio = np.round(best_solution.ratio, 2)
-    need_to_add = int(np.round((1-interger_ratio.sum())*100))
-    if need_to_add!=0:
-        #各项余数tmp
-        drifts = best_solution.ratio - interger_ratio
-        drifts_ascending = drifts.sort_values()
-        if need_to_add>0: #不到100%需要补充 
-            for i in range(abs(need_to_add)): 
-                interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
-                print("Adding ", drifts_ascending.index[-(i+1)])
-        else:  # need_to_add<0:
-            for i in range(abs(need_to_add)): 
-                interger_ratio[drifts_ascending.index[i]] -= 0.01
-                print("Cutting ", drifts_ascending.index[i])
-    best_solution.ratio = np.round(interger_ratio, 6)  #Web display bug
+    try:
+        interger_ratio = np.round(best_solution.ratio, 2)
+        need_to_add = int(np.round((1-interger_ratio.sum())*100))
+        if need_to_add!=0:
+            #各项余数tmp
+            drifts = best_solution.ratio - interger_ratio
+            drifts_ascending = drifts.sort_values()
+            if need_to_add>0: #不到100%需要补充 
+                for i in range(abs(need_to_add)): 
+                    interger_ratio[drifts_ascending.index[-(i+1)]] += 0.01
+                    print("Adding ", drifts_ascending.index[-(i+1)])
+            else:  # need_to_add<0:
+                for i in range(abs(need_to_add)): 
+                    interger_ratio[drifts_ascending.index[i]] -= 0.01
+                    print("Cutting ", drifts_ascending.index[i])
+        best_solution.ratio = np.round(interger_ratio, 6)  #Web display bug
+    except:
+        print("Ratio error!! pass")
     return best_solution
 
 def web_consumption_int(best_solution):
@@ -670,7 +691,7 @@ def calculate():    #API 1,
     #Call GA:
     if args.threads == 1:   #for single thread debug
         constraint_eq, constraint_ueq = get_constraints(args)
-        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.01, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['ratio']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['ratio']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
         ga.run()
         sys.exit()
     _best_ratio_adjust_, _y_, best_solution, element_output = run_opt(args)
@@ -700,7 +721,7 @@ def calculate():    #API 1,
         new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
     S_vs_Cu = res_element['S']/res_element['Cu']
 
-    res_data = {
+    res = {
         "list": 
             res_data,
         "calculateParameter":
@@ -718,7 +739,7 @@ def calculate():    #API 1,
         "elementsMixtureList": 
             new_res_element
     }
-    return jsonify(res_data)
+    return jsonify(res)
 
 @app.route('/api/getInventory', methods=['GET'])
 @cross_origin()
@@ -741,7 +762,7 @@ if __name__ == '__main__':
     doc = 'GA搜索和“三种必选（仅必选，必选且用完，必选且比例）”的关系：只有“仅必选”参与GA搜索，同时GA的5%阈值考虑“必选且比例”，原则上“必选且用完”和“必选且比例”在GA外生成solution时候才被加入，evaluation的时候“必选且用完”要另外单独考虑。'
     parser = argparse.ArgumentParser()
     parser.add_argument("-D", '--DEBUG', action='store_true', default=False)
-    parser.add_argument("-S", '--ON_SERVER', action='store_true', default=False)
+    parser.add_argument("-S", '--ON_SERVER', action='store_false', default=True)
     parser.add_argument("-O", '--OBJ', type=int, default=1)
     parser.add_argument("-E", '--epoch', type=int, default=50)
     parser.add_argument("-P", '--pop', type=int, default=100)
