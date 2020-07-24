@@ -1,4 +1,4 @@
-name,volume_of_storage,number,Cu,Fe,S,SiO2,CaO,As,Zn,Pb,MgO,Al2O3,H2O,required,ratio,clean
+name,inventory,number,Cu,Fe,S,SiO2,CaO,As,Zn,Pb,MgO,Al2O3,H2O,required,calculatePercentage,clean
 水星轮,15000,10001,24.78,25.78,32.45,6.38,0.18,0.14,0.26,0.05,0.21,1.92,9.36,1,0,1
 莱科塔,6000,10002,24.01,31.02,33.85,3.1,0.09,0.16,0.35,0.12,0.31,1.8,8.5,1,0,1
 古北,6000,10007,27.78,22.78,26.45,8.38,1.18,0.14,1.2,1.05,1.21,1.92,8.3,1,0,1
