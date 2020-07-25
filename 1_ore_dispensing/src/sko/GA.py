@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2019/8/20
 # @Author  : github.com/guofei9987
-
+import sys
 import copy
 import numpy as np
 from .base import SkoBase
@@ -91,6 +91,7 @@ class GeneticAlgorithmBase(SkoBase, metaclass=ABCMeta):
             global_best_index = np.array(self.generation_best_Y).argmin()
             #Print each epoch
             print("\nEPOCH:", i, "best X", self.X[generation_best_index, :]/(self.X[generation_best_index, :]).sum(), "best Y", self.Y[generation_best_index])
+            sys.stdout.flush()
             global_best_index = np.array(self.generation_best_Y).argmin()
             global_best_X = self.generation_best_X[global_best_index]
             global_best_Y = self.func(np.array([global_best_X]))
