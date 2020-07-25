@@ -1,4 +1,4 @@
-scipy
+scipy==1.0.1
 sympy
 argparse
 datetime
