@@ -1,0 +1,10 @@
+scipy
+sympy
+argparse
+datetime
+matplotlib
+numpy
+pandas
+tqdm
+IPython
+flask
