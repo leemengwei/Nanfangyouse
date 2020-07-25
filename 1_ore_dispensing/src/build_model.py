@@ -214,7 +214,7 @@ def run_opt_map(struct):   #map需要，多线程调用GA
 def run_rand(args):
     print("\n\nRandom search GA, 1 iters, all pop.")
     best_ys = []
-    for i in range(args.threads):  #多线程跑几次这里就跑几次
+    for i in range(2): 
         constraint_eq, constraint_ueq = get_constraints(args)
         ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
         best_gax, best_gay = ga.run()
@@ -224,9 +224,11 @@ def run_rand(args):
 
 def run_opt(args):
     blobs = []
-    pool = Pool(processes=int(cpu_count()/2))   #这个固定死，效率最高,跟做多少次没关系
+    pool_num = int(cpu_count())
+    print('Run times and pool num', pool_num)
+    pool = Pool(processes = pool_num)   #这个固定死，效率最高,跟做多少次没关系
     struct_list = []
-    for i in range(args.threads):  #做threads次
+    for i in range(pool_num):  #同时做n次
         struct_list.append([i, args])
     rs = pool.map(run_opt_map, struct_list) #CORE
     pool.close()
@@ -652,11 +654,6 @@ def calculate():    #API 1,
     args = compelete_basic_args(args)
 
     #Call GA:
-    if args.threads == 1:   #for single thread debug
-        constraint_eq, constraint_ueq = get_constraints(args)
-        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
-        ga.run()
-        sys.exit()
     _best_ratio_adjust_, _y_, best_solution, element_output = run_opt(args)
     raw_ratio = best_solution['calculatePercentage']
     best_solution = best_solution.loc[best_solution['calculatePercentage']!=0]
@@ -729,7 +726,6 @@ if __name__ == '__main__':
     parser.add_argument("-A", '--alpha', type=int, default=1)
     parser.add_argument("-B", '--beta', type=int, default=1)
     parser.add_argument("-G", '--gama', type=int, default=1)  #default=3~4  ~=2*alpha+1*beta
-    parser.add_argument("-T", '--threads', type=int, default=min(2, int(cpu_count()/2)))
     parser.add_argument("-M", '--MAX_TYPE_TO_SEARCH', type=int, default=4)
     parser.add_argument("--NOT_COMPUTE", type=list, default=['渣精矿烟灰'])
     parser.add_argument('--Flow', type=int, default=150)
