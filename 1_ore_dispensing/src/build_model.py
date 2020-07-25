@@ -80,8 +80,8 @@ def C(n,k):
     out = comb(n, k)
     return out
 
-def get_storage(for_show=False):
-    if for_show:
+def get_storage(for_web=False):
+    if for_web:
         ingredient_storage = pd.read_csv("../data/0_INVENTORY_STORAGE_ALL.csv", index_col='name')
     else:
         ingredient_storage = pd.read_csv("../data/1_INVENTORY_STORAGE_CHOOSE_FROM.csv", index_col='name')
@@ -198,7 +198,7 @@ def run_opt_map(struct):   #map需要，多线程调用GA
     #GAwrapper.is_vector=True
     #整数规划，要求某个变量的取值可能个数是2^n，2^n=128, 96+32=128, 则上限为132
     #考虑一步到位,所有物料参与选择,下限为0
-    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
     best_gax, best_gay = ga.run()
     best_ratio = best_gax/best_gax.sum()
     #GA内部每次生成样本后回去拼凑full solution（为了必选且比例项，所以这里返回的gax是不包括的，需要重新补充一下）：
@@ -216,7 +216,7 @@ def run_rand(args):
     best_ys = []
     for i in range(2): 
         constraint_eq, constraint_ueq = get_constraints(args)
-        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.003, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
         best_gax, best_gay = ga.run()
         best_ys.append(best_gay[0])
     best_ys = np.array(best_ys)
@@ -703,7 +703,7 @@ def calculate():    #API 1,
 def getInventory():    #API 0-1   temporary 演示版，实际不需要
     global args
     #获取库存 for 显示
-    inventory_storage = get_storage(for_show=True)
+    inventory_storage = get_storage(for_web=True)
     #pandas to res_data
     res_data = pd_to_res(inventory_storage)
     res_data = {
