@@ -137,7 +137,7 @@ def mixing(args, full_solution):
     _consumed_amounts_ = get_consumed_amounts(_ratios_, _volume_of_storage_, _solution_index_)
     full_solution['consumed_amounts'] = _consumed_amounts_
     full_solution['inventoryBalance'] = _volume_of_storage_ - _consumed_amounts_
-    full_solution['productionTime'] = np.round(_volume_of_storage_/(_ratios_*args.Flow+epsilon), 2)
+    full_solution['productionTime'] = np.round(_volume_of_storage_/(_ratios_*args.Flow+epsilon)/24, 1)
     #compute mix element of full solution
     _element_output_ = (_ratios_.reshape(-1,1) * _elements_).sum(axis=0)
     element_output = pd.DataFrame(_element_output_.reshape(1,-1), columns=args.ELEMENTS)
@@ -147,6 +147,9 @@ def evaluation(args, full_solution, element_output):
     _volume_of_storage_ = args.INGREDIENT_STORAGE['inventory'].values
     _consumed_amounts_ = full_solution['consumed_amounts'].values
     _leftover_ = full_solution['inventoryBalance'].values
+    _should_clean_storage_= full_solution['inventory'][args.INGREDIENT_MUST_CLEAN.index].values
+    _should_clean_leftover_ = full_solution['inventoryBalance'][args.INGREDIENT_MUST_CLEAN.index].values
+    penalty = sum(np.round(_should_clean_leftover_/_should_clean_storage_, 2)) * 1000 #以矢量的方式判断是否小于1%
     #根据混合结果得到Objectives:
     obj_consumed = _consumed_amounts_       #越大越好
     obj_leftover = _leftover_ #越小越好， 平滑
@@ -180,7 +183,7 @@ def evaluation(args, full_solution, element_output):
     #print(normed_dict, "ele_diff:", obj_element_diff, 'priorities', args.ELEMENT_PRIORITIES_SCORE)
 
     #Multi-Obj to Single_obj:   #更正认识：平滑的局地极小更多，错误解可能更大, 非平滑的只有在真正正确的时候得到小值
-    objective_function = 100 - args.alpha*normed_obj_amount - args.beta*normed_obj_leftover - 3*args.gama*normed_obj_elements    #GA的适应度会是他的负值，恰好是loss最低的适应度最大。故此obj需要-->0
+    objective_function = 100 - args.alpha*normed_obj_amount - args.beta*normed_obj_leftover - 3*args.gama*normed_obj_elements + penalty    #GA的适应度会是他的负值，恰好是loss最低的适应度最大。故此obj需要-->0
     score = objective_function
     if args.DEBUG:print(full_solution, '  ', score)
     return obj_dict, score
@@ -198,7 +201,7 @@ def run_opt_map(struct):   #map需要，多线程调用GA
     #GAwrapper.is_vector=True
     #整数规划，要求某个变量的取值可能个数是2^n，2^n=128, 96+32=128, 则上限为132
     #考虑一步到位,所有物料参与选择,下限为0
-    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=args.ratio_taken, columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=args.ratio_taken, columns_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
     best_gax, best_gay = ga.run()
     best_ratio = best_gax/best_gax.sum()
     #GA内部每次生成样本后回去拼凑full solution（为了必选且比例项，所以这里返回的gax是不包括的，需要重新补充一下）：
@@ -216,7 +219,7 @@ def run_rand(args):
     best_ys = []
     for i in range(2): 
         constraint_eq, constraint_ueq = get_constraints(args)
-        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=args.ratio_taken, columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=args.ratio_taken, columns_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
         best_gax, best_gay = ga.run()
         best_ys.append(best_gay[0])
     best_ys = np.array(best_ys)
@@ -610,8 +613,8 @@ def web_consumption_int(best_solution):
     _ratios_ = best_solution['calculatePercentage'].values
     _volume_of_storage_ = best_solution['inventory'].values
     _solution_index_ = best_solution.index
-    best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(_ratios_, _volume_of_storage_, _solution_index_)).astype(int), 0, best_solution['inventory'])
-    best_solution['inventoryBalance'] = best_solution['inventory'] - best_solution['consumed_amounts']
+    best_solution['consumed_amounts'] = np.clip(np.round(get_consumed_amounts(_ratios_, _volume_of_storage_, _solution_index_), 1), 0, best_solution['inventory'])
+    best_solution['inventoryBalance'] = np.round(best_solution['inventory'] - best_solution['consumed_amounts'], 2)
     #for index,content in best_solution.iterrows():   #如果页面上想展示detial：
     #    best_solution.loc[index, 'calculatePercentage'] = str(best_solution.loc[index, 'calculatePercentage'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
     return best_solution
@@ -645,8 +648,9 @@ def calculate():    #API 1,
     args.OXYGEN_CONCENTRATION = req_data['presetParameter']['oxygenConcentration']
     args.COAL_T = req_data['presetParameter']['peaCoal']
     args.Fe_vs_SiO2 = req_data['presetParameter']['FeSiO2Ratio']
+    #args.Fe2O3_vs_FeO = req_data['presetParameter']['Fe2O3_vs_FeO']  #TODO
+    args.Fe2O3_vs_FeO = 0.66667
     args.Flow = req_data['presetParameter']['consumedAmount']
-
     #For GA-par
     args.epoch = req_data['modelWeight']['gaEpoch']
     args.pop = int(int(req_data['modelWeight']['gaPop']/2)*2)
@@ -745,9 +749,8 @@ if __name__ == '__main__':
     parser.add_argument("-B", '--beta', type=int, default=1)
     parser.add_argument("-G", '--gama', type=int, default=1)  #default=3~4  ~=2*alpha+1*beta
     parser.add_argument("-M", '--MAX_TYPE_TO_SEARCH', type=int, default=4)
-    parser.add_argument("--NOT_COMPUTE", type=list, default=['渣精矿烟灰'])
+    parser.add_argument("--NOT_COMPUTE", type=list, default=['渣精矿烟灰', '渣精矿混烟灰', '渣精矿'])
     parser.add_argument('--Flow', type=int, default=150)
-    parser.add_argument('--Fe2O3_vs_FeO', type=float, default=4/6)
     parser.add_argument("-ELEMENTS", '--ELEMENTS', type=list, default=['Cu', 'Fe', 'S', 'SiO2', 'CaO', 'As', 'Zn', 'Pb', 'MgO', 'Al2O3', 'H2O', 'Sb', 'Bi', 'Ni', 'Ag', 'Au'])
     parser.add_argument("-ELEMENT_MATTERS", '--ELEMENT_MATTERS', type=list, default=['Cu', 'As'])
     parser.add_argument('--OXYGEN_CONCENTRATION', type=float, default=0.85)
@@ -795,6 +798,11 @@ if __name__ == '__main__':
 
         #Optimization:
         #run_opt(args)
+
+
+#目前已经把‘仅必选、必选且用光’两个都传给GA了，‘必备且有百分比’的项目在外面做
+#仅必选的通过扩大100倍保留了，必用光的多项有reducer，但貌似没有做惩罚。先这样吧。
+
 
 
 

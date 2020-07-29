@@ -151,7 +151,7 @@ class GA(GeneticAlgorithmBase):
                  precision=1e-7,
                  MAX_TYPE_TO_SEARCH=4,
                  ratio_taken=0,
-                 columns_just_must=[]
+                 columns_must=[]
                  ):
         super().__init__(func, n_dim, size_pop, max_iter, prob_mut, constraint_eq, constraint_ueq)
 
@@ -159,8 +159,8 @@ class GA(GeneticAlgorithmBase):
         self.precision = np.array(precision) * np.ones(self.n_dim)  # works when precision is int, float, list or array
         self.MAX_TYPE_TO_SEARCH = int(MAX_TYPE_TO_SEARCH)
         self.ratio_taken = ratio_taken
-        self.columns_just_must = columns_just_must[0]
-        self.dimension_reducer_dict = columns_just_must[1]
+        self.columns_must = columns_must[0]
+        self.dimension_reducer_dict = columns_must[1]
 
         # Lind is the num of genes of every variable of func（segments）
         Lind_raw = np.log2((self.ub - self.lb) / self.precision + 1)
@@ -223,6 +223,7 @@ class GA(GeneticAlgorithmBase):
         return X
 
     def reduce_dimension(self, X):
+        #对于必清的项目，计算其相互的比例倍数，通过dimension reducer给GA算法
         if len(list(self.dimension_reducer_dict.keys()))>0:
             least_must_clean_col = np.array(list(self.dimension_reducer_dict.keys()))[np.array(list(self.dimension_reducer_dict.values()))==1][0]
             X[:, least_must_clean_col] = np.clip(X[:, least_must_clean_col], a_min=1e-8, a_max=np.inf)
@@ -244,15 +245,15 @@ class GA(GeneticAlgorithmBase):
 
         # By lmw for METAL SMELTING:
         X = X_ratio
-        # Constraint 0-1: “仅仅必选”项目必须保留（需要优化百分比），先行扩大一百倍，确保排名时一定被选中
-        X[:, self.columns_just_must] = X[:, self.columns_just_must]*100
+        # Constraint 0-1: “仅仅必选”&“必清”项目必须保留（需要优化百分比），先行扩大一百倍，确保排名时一定被选中
+        X[:, self.columns_must] = X[:, self.columns_must]*100
         # Constraint 1: 处理输物料最大种类限制，排名范围靠后的先删掉为0，无所为总占比，不用分摊（想被选中的个体需要挤进前几名） 
         sorted_X = copy.deepcopy(X)
         sorted_X.sort() 
-        threshold = sorted_X[:, -(self.MAX_TYPE_TO_SEARCH+len(self.columns_just_must)):][:,0]
+        threshold = sorted_X[:, -(self.MAX_TYPE_TO_SEARCH+len(self.columns_must)):][:,0]
         X, where_left = self.cut_out_columns(X, threshold)
         # Constraint 0-2 必保留列缩回100倍
-        X[:, self.columns_just_must] = X[:, self.columns_just_must]/100
+        X[:, self.columns_must] = X[:, self.columns_must]/100
         #use_dirichlet = True
         use_dirichlet = False
         if not use_dirichlet:
