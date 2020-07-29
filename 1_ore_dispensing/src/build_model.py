@@ -326,27 +326,27 @@ def getFormula():   #temporary   API 0-2
     solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
     solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
     #从csv同时读入旧配方的预设参数，新配方的不用管，衔接的配方的参数以旧配方为准
-    args.Matte_Cu_Percentage  = solution_1.Matte_Cu_Percentage[0] 
-    args.Matte_Fe_Percentage  = solution_1.Matte_Fe_Percentage[0]
-    args.Matte_S_Percentage   = solution_1.Matte_S_Percentage[0]  
-    args.Slag_Cu_Percentage   = solution_1.Slag_Cu_Percentage[0]  
-    args.Slag_S_Percentage    = solution_1.Slag_S_Percentage[0]   
-    args.Slag_Fe_Percentage   = solution_1.Slag_Fe_Percentage[0]  
-    args.Slag_SiO2_Percentage = solution_1.Slag_SiO2_Percentage[0]
+    args.Matte_Cu_Percentage  = solution_1.iloc[:,0].Matte_Cu_Percentage 
+    args.Matte_Fe_Percentage  = solution_1.iloc[:,0].Matte_Fe_Percentage
+    args.Matte_S_Percentage   = solution_1.iloc[:,0].Matte_S_Percentage  
+    args.Slag_Cu_Percentage   = solution_1.iloc[:,0].Slag_Cu_Percentage  
+    args.Slag_S_Percentage    = solution_1.iloc[:,0].Slag_S_Percentage   
+    args.Slag_Fe_Percentage   = solution_1.iloc[:,0].Slag_Fe_Percentage  
+    args.Slag_SiO2_Percentage = solution_1.iloc[:,0].Slag_SiO2_Percentage
                                 
-    args.OXYGEN_PEER_COAL     = solution_1.OXYGEN_PEER_COAL[0]    
-    args.COAL_T               = solution_1.COAL_T[0]              
-    args.Fe_vs_SiO2           = solution_1.Fe_vs_SiO2[0]         
-    args.Fe2O3_vs_FeO         = solution_1.Fe2O3_vs_FeO[0]        
-    args.Flow                 = solution_1.Flow[0]                
-    args.OXYGEN_CONCENTRATION = solution_1.OXYGEN_CONCENTRATION[0]
+    args.OXYGEN_PEER_COAL     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
+    args.COAL_T               = solution_1.iloc[:,0].COAL_T
+    args.Fe_vs_SiO2           = solution_1.iloc[:,0].Fe_vs_SiO2
+    args.Fe2O3_vs_FeO         = solution_1.iloc[:,0].Fe2O3_vs_FeO
+    args.Flow                 = solution_1.iloc[:,0].Flow
+    args.OXYGEN_CONCENTRATION = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
     #氧料比也读出来，而且是两个配方的都读出来
-    oxygenMaterialRatio_1 = solution_1.OxygenMaterialRatio[0]
-    oxygenMaterialRatio_2 = solution_2.OxygenMaterialRatio[0]
+    oxygenMaterialRatio_1 = solution_1.iloc[:,0].OxygenMaterialRatio
+    oxygenMaterialRatio_2 = solution_2.iloc[:,0].OxygenMaterialRatio
 
     #随后丢掉这些列，web才能正常显示
-    solution_1 = solution_1.dropna(axis=1)
-    solution_2 = solution_2.dropna(axis=1)
+    solution_1 = solution_1.dropna(axis=0)
+    solution_2 = solution_2.dropna(axis=0)
     print("Solution read in")
 
     solution_1['formula'] = '1'
