@@ -180,7 +180,7 @@ def evaluation(args, full_solution, element_output):
     #print(normed_dict, "ele_diff:", obj_element_diff, 'priorities', args.ELEMENT_PRIORITIES_SCORE)
 
     #Multi-Obj to Single_obj:   #更正认识：平滑的局地极小更多，错误解可能更大, 非平滑的只有在真正正确的时候得到小值
-    objective_function = (args.alpha+args.beta+args.gama) - args.alpha*normed_obj_amount - args.beta*normed_obj_leftover - args.gama*normed_obj_elements    #GA的适应度会是他的负值，恰好是loss最低的适应度最大。故此obj需要-->0
+    objective_function = 100 - args.alpha*normed_obj_amount - args.beta*normed_obj_leftover - 3*args.gama*normed_obj_elements    #GA的适应度会是他的负值，恰好是loss最低的适应度最大。故此obj需要-->0
     score = objective_function
     if args.DEBUG:print(full_solution, '  ', score)
     return obj_dict, score
@@ -198,7 +198,7 @@ def run_opt_map(struct):   #map需要，多线程调用GA
     #GAwrapper.is_vector=True
     #整数规划，要求某个变量的取值可能个数是2^n，2^n=128, 96+32=128, 则上限为132
     #考虑一步到位,所有物料参与选择,下限为0
-    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+    ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop, max_iter=args.epoch, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=args.ratio_taken, columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
     best_gax, best_gay = ga.run()
     best_ratio = best_gax/best_gax.sum()
     #GA内部每次生成样本后回去拼凑full solution（为了必选且比例项，所以这里返回的gax是不包括的，需要重新补充一下）：
@@ -216,7 +216,7 @@ def run_rand(args):
     best_ys = []
     for i in range(2): 
         constraint_eq, constraint_ueq = get_constraints(args)
-        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage']), columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
+        ga = GA(func=GAwrapper, n_dim=args.NUM_OF_TYPES_FOR_GA, size_pop=args.pop*args.epoch, max_iter=1, lb=[0]*args.NUM_OF_TYPES_FOR_GA, ub=[100]*args.NUM_OF_TYPES_FOR_GA, constraint_eq=constraint_eq, constraint_ueq=constraint_ueq, precision=[0.01]*args.NUM_OF_TYPES_FOR_GA, prob_mut=0.002, MAX_TYPE_TO_SEARCH=args.MAX_TYPE_TO_SEARCH, ratio_taken=args.ratio_taken, columns_just_must=[args.JUST_MUST_AND_MUST_CLEAN_COLUMNS, args.DIMENSION_REDUCER_DICT])
         best_gax, best_gay = ga.run()
         best_ys.append(best_gay[0])
     best_ys = np.array(best_ys)
@@ -275,6 +275,7 @@ def compelete_basic_args(args):
     else:
         pass
     args.INGREDIENT_MUST_WITH_RATIO = args.INGREDIENT_STORAGE.loc[list(set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.required!=0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.calculatePercentage!=0].index))]   #必选比例以定
+    args.ratio_taken = sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage'])
     args.INGREDIENT_MUST_CLEAN = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.clean!=0].index)]  #必选且必须清空该料
     args.INGREDIENT_JUST_MUST = args.INGREDIENT_STORAGE.loc[list(set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.required!=0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.calculatePercentage==0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.clean==0].index))]  #必选但不指定比例
     args.INGREDIENT_CHOOSE_FROM = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[(args.INGREDIENT_STORAGE.required+args.INGREDIENT_STORAGE.clean)==0].index)]
@@ -319,33 +320,34 @@ def oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRa
 def getFormula():   #temporary   API 0-2
     #随便搜索两个:
     global args
-    if os.path.exists('../data/solution_1.csv') and os.path.exists('../data/solution_2.csv'):
-        solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
-        solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
-        _, element_output_1 = mixing(args, copy.deepcopy(solution_1))
-        _, element_output_2 = mixing(args, copy.deepcopy(solution_2))
-        print("Solution read in")
-    else:
-        solution_1 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
-        solution_2 = args.INGREDIENT_STORAGE.loc[random.sample(list(args.INGREDIENT_STORAGE.index), 5)]
-        solution_1['calculatePercentage'] = np.random.dirichlet(range(1,len(solution_1.index)+1))
-        solution_2['calculatePercentage'] = np.random.dirichlet(range(1,len(solution_2.index)+1))
-        solution_1['cohesion'] = 0
-        solution_2['cohesion'] = 0
-        solution_1 = web_ratio_int(solution_1)
-        solution_2 = web_ratio_int(solution_2)
-        solution_1, element_output_1 = mixing(args, solution_1)
-        solution_2, element_output_2 = mixing(args, solution_2)
-        solution_1 = web_consumption_int(solution_1)
-        solution_2 = web_consumption_int(solution_2)
-        solution_1.to_csv("../data/solution_1.csv")
-        solution_2.to_csv("../data/solution_2.csv")
-        print("Randomly generated")
- 
+    solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
+    solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
+    #从csv同时读入旧配方的预设参数，新配方的不用管，衔接的配方的参数以旧配方为准
+    args.Matte_Cu_Percentage  = solution_1.Matte_Cu_Percentage[0] 
+    args.Matte_Fe_Percentage  = solution_1.Matte_Fe_Percentage[0]
+    args.Matte_S_Percentage   = solution_1.Matte_S_Percentage[0]  
+    args.Slag_Cu_Percentage   = solution_1.Slag_Cu_Percentage[0]  
+    args.Slag_S_Percentage    = solution_1.Slag_S_Percentage[0]   
+    args.Slag_Fe_Percentage   = solution_1.Slag_Fe_Percentage[0]  
+    args.Slag_SiO2_Percentage = solution_1.Slag_SiO2_Percentage[0]
+                                
+    args.OXYGEN_PEER_COAL     = solution_1.OXYGEN_PEER_COAL[0]    
+    args.COAL_T               = solution_1.COAL_T[0]              
+    args.Fe_vs_SiO2           = solution_1.Fe_vs_SiO2[0]         
+    args.Fe2O3_vs_FeO         = solution_1.Fe2O3_vs_FeO[0]        
+    args.Flow                 = solution_1.Flow[0]                
+    args.OXYGEN_CONCENTRATION = solution_1.OXYGEN_CONCENTRATION[0]
+    #氧料比也读出来，而且是两个配方的都读出来
+    oxygenMaterialRatio_1 = solution_1.OxygenMaterialRatio[0]
+    oxygenMaterialRatio_2 = solution_2.OxygenMaterialRatio[0]
+
+    #随后丢掉这些列，web才能正常显示
+    solution_1 = solution_1.dropna(axis=1)
+    solution_2 = solution_2.dropna(axis=1)
+    print("Solution read in")
+
     solution_1['formula'] = '1'
     solution_2['formula'] = '2'
-    oxygenMaterialRatio_1, Matte_T1, Slag_T1, Wind_Flux1, SiO2_T1 = calc_oxygen(args, element_output_1)
-    oxygenMaterialRatio_2, Matte_T2, Slag_T2, Wind_Flux2, SiO2_T2 = calc_oxygen(args, element_output_2)
 
     res_data1 = pd_to_res(solution_1)
     res_data2 = pd_to_res(solution_2)
@@ -365,6 +367,22 @@ def getFormula():   #temporary   API 0-2
               "formula2": round(oxygenMaterialRatio_2, 2),
               "formula*": '计算后下方显示',
             },
+         "presetParameter":
+            {
+             'matteTargetGradePercentage': round(args.Matte_Cu_Percentage, 2),
+             'matteFePercentage': round(args.Matte_Fe_Percentage, 2),
+             'matteSPercentage': round(args.Matte_S_Percentage, 2),
+             'slagCuPercentage': round(args.Slag_Cu_Percentage, 2),
+             'slagFePercentage': round(args.Slag_Fe_Percentage, 2),
+             'slagSPercentage': round(args.Slag_S_Percentage, 2),
+             'slagSiO2Percentage': round(args.Slag_SiO2_Percentage, 2),
+             'maxType': round(args.MAX_TYPE_TO_SEARCH, 2),
+             'oxygenPeaCoalRatio': round(args.OXYGEN_PEER_COAL, 2),
+             'oxygenConcentration': round(args.OXYGEN_CONCENTRATION, 2),
+             'peaCoal': round(args.COAL_T, 2),
+             'FeSiO2Ratio': round(args.Fe_vs_SiO2, 2),
+             'consumedAmount': round(args.Flow, 2),
+            }
          }
     return jsonify(res_data)
 
@@ -395,6 +413,10 @@ def quick_recommend():   #API 3
         oxygenMaterialRatios = []
         compose_solutions = []
         compose_consumed_amounts_sorter = []    #这个sorter仅统计未消耗光的其他项的进一步数量，越大越好
+        #特殊处理用户指定的fixed part，先取出来
+        solution_1_fixed_part = solution_1[solution_1['fixed'] == 1]  #诸如渣精矿可以勾选fixed
+        ratio_taken = sum(solution_1['calculatePercentage'][solution_1_fixed_part.index].values)
+        solution_1 = solution_1.drop(solution_1_fixed_part.index)
         solution_1_short_types = solution_1[solution_1['cohesion'] == 1].index  #让用户选择需要衔接哪一个
         solution_2_short_types = solution_2[solution_2['inventoryBalance'] <= 300].index
         solution_1_types_avaliable = list(set(solution_1.index) - set(solution_1_short_types))
@@ -406,21 +428,23 @@ def quick_recommend():   #API 3
         combinations_more_to_less.insert(0, '')   #添加一个空项目进来，即‘不混入任何配方2’。
         #把新的2混到旧的1中
         for i in combinations_more_to_less:
-            tmp_solution_1 = copy.deepcopy(solution_1.drop(solution_1_short_types))   #耗尽项空出来
+            tmp_solution_1 = solution_1.drop(solution_1_short_types)   #耗尽项空出来
             index_after_drop = list(set(tmp_solution_1.index) - set(args.NOT_COMPUTE))
-            tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]])  #接上新加的项
+            tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]]) 
             print("Searching... ",i, tmp_solution_1.index)
             #随机搜索配比组合：
-            for _ in tqdm.tqdm(range(200)):
-                tmp_solution_1['calculatePercentage'] = np.random.dirichlet(range(1, len(tmp_solution_1)+1))
+            for _ in tqdm.tqdm(range(600)):
+                tmp_solution_1['calculatePercentage'] = np.random.dirichlet(range(1, len(tmp_solution_1)+1))*(1-ratio_taken)
+                #再接fixed part回去
+                tmp_full_solution_1 = pd.concat((tmp_solution_1, solution_1_fixed_part))
                 #计算每一种组合的情况
-                tmp_solution_1, tmp_element_output = mixing(args, tmp_solution_1)   #mix之后就有新的消耗列了，然后在计算混入项的理论剩余（下面)
+                tmp_full_solution_1, tmp_element_output = mixing(args, tmp_full_solution_1)   #mix之后就有新的消耗列了，然后在计算混入项的理论剩余（下面)
                 tmp_oxygenMaterialRatio, tmp_Matte_T, tmp_Slag_T, tmp_Wind_Flux, tmp_SiO2_T = calc_oxygen(args, tmp_element_output)
                 #对于那些氧料比需要满足要求的，就先记下来（最终物料存量肯定会满足要求的，因为mix时用的是两个配方的剩余量）：
-                if oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRatio): # and (tmp_solution_1['calculatePercentage']>=0.05).all():
-                    compose_solutions.append(copy.deepcopy(tmp_solution_1))
+                if oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRatio): # and (tmp_full_solution_1['calculatePercentage']>=0.05).all():
+                    compose_solutions.append(copy.deepcopy(tmp_full_solution_1))
                     oxygenMaterialRatios.append(tmp_oxygenMaterialRatio)
-                    compose_consumed_amounts_sorter.append(tmp_solution_1['consumed_amounts'][index_after_drop].sum())
+                    compose_consumed_amounts_sorter.append(tmp_full_solution_1['consumed_amounts'][index_after_drop].sum())
         #查找结束后看是否存在可行解。随后参考旧单子，查看其所有旧物料消耗最大的情况作为解：
         if len(compose_solutions)>=1:
             concat_solution = compose_solutions[np.array(compose_consumed_amounts_sorter).argmax()]
@@ -509,7 +533,6 @@ def quick_update(by_update_2=False):   #API 2
     web_solution = web_ratio_int(web_solution)
     adjust_solution, element_output = mixing(args, web_solution)
     adjust_solution = web_consumption_int(adjust_solution)
-    _, _y_ = evaluation(args, adjust_solution, element_output)
     #计算氧料比update：
     oxygenMaterialRatio, Matte_T, Slag_T, Wind_Flux, SiO2_T = calc_oxygen(args, element_output)
     #pandas to req_data
@@ -529,7 +552,7 @@ def quick_update(by_update_2=False):   #API 2
             "oxygenMaterialRatio": round(oxygenMaterialRatio, 2),
             "totalConsumedAmount": round(sum(adjust_solution['consumed_amounts']), 2),
             "totalLeftOver": round(sum(adjust_solution['inventoryBalance']), 2),
-            "best_y": round(_y_, 2),
+            "best_y": round(0.00,2),
             "paFlow": round(Wind_Flux, 2),
             "SCuRatio": round(S_vs_Cu, 2),
             "totalMatte": round(Matte_T, 2),
@@ -610,19 +633,19 @@ def calculate():    #API 1,
     args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存，周工必须这么传给我
 
     #Web-set parameters
-    args.Fe_vs_SiO2 = req_data['presetParameter']['FeSiO2Ratio']
-    args.Flow = req_data['presetParameter']['consumedAmount']
+    args.Matte_Cu_Percentage = req_data['presetParameter']['matteTargetGradePercentage']
     args.Matte_Fe_Percentage = req_data['presetParameter']['matteFePercentage']
     args.Matte_S_Percentage = req_data['presetParameter']['matteSPercentage']
-    args.Matte_Cu_Percentage = req_data['presetParameter']['matteTargetGradePercentage']
-    args.MAX_TYPE_TO_SEARCH = req_data['presetParameter']['maxType']
-    args.OXYGEN_PEER_COAL = req_data['presetParameter']['oxygenPeaCoalRatio']
-    args.OXYGEN_CONCENTRATION = req_data['presetParameter']['oxygenConcentration']
-    args.COAL_T = req_data['presetParameter']['peaCoal']
     args.Slag_Cu_Percentage = req_data['presetParameter']['slagCuPercentage']
     args.Slag_Fe_Percentage = req_data['presetParameter']['slagFePercentage']
     args.Slag_S_Percentage = req_data['presetParameter']['slagSPercentage']
     args.Slag_SiO2_Percentage = req_data['presetParameter']['slagSiO2Percentage']
+    args.MAX_TYPE_TO_SEARCH = req_data['presetParameter']['maxType']
+    args.OXYGEN_PEER_COAL = req_data['presetParameter']['oxygenPeaCoalRatio']
+    args.OXYGEN_CONCENTRATION = req_data['presetParameter']['oxygenConcentration']
+    args.COAL_T = req_data['presetParameter']['peaCoal']
+    args.Fe_vs_SiO2 = req_data['presetParameter']['FeSiO2Ratio']
+    args.Flow = req_data['presetParameter']['consumedAmount']
 
     #For GA-par
     args.epoch = req_data['modelWeight']['gaEpoch']
@@ -663,11 +686,6 @@ def calculate():    #API 1,
     _, _y_ = evaluation(args, best_solution, element_output)
 
     #计算氧料比：
-    args.Quality = req_data['presetParameter']['matteTargetGradePercentage']/100
-    args.Slag_Cu = req_data['presetParameter']['slagCuPercentage']/100
-    args.Slag_S = req_data['presetParameter']['slagSPercentage']/100
-    args.Slag_Fe = req_data['presetParameter']['slagFePercentage']/100
-    args.Slag_SiO2 = req_data['presetParameter']['slagSiO2Percentage']/100
     oxygenMaterialRatio, Matte_T, Slag_T, Wind_Flux, SiO2_T = calc_oxygen(args, element_output)
     #pandas to req_data
     res_element = pd_to_res(element_output)[0]
@@ -729,7 +747,7 @@ if __name__ == '__main__':
     parser.add_argument("-M", '--MAX_TYPE_TO_SEARCH', type=int, default=4)
     parser.add_argument("--NOT_COMPUTE", type=list, default=['渣精矿烟灰'])
     parser.add_argument('--Flow', type=int, default=150)
-    parser.add_argument('--Fe2O3_vs_FeO', type=float, default=0.4)
+    parser.add_argument('--Fe2O3_vs_FeO', type=float, default=4/6)
     parser.add_argument("-ELEMENTS", '--ELEMENTS', type=list, default=['Cu', 'Fe', 'S', 'SiO2', 'CaO', 'As', 'Zn', 'Pb', 'MgO', 'Al2O3', 'H2O', 'Sb', 'Bi', 'Ni', 'Ag', 'Au'])
     parser.add_argument("-ELEMENT_MATTERS", '--ELEMENT_MATTERS', type=list, default=['Cu', 'As'])
     parser.add_argument('--OXYGEN_CONCENTRATION', type=float, default=0.85)

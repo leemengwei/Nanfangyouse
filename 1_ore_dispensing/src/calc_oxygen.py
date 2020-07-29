@@ -12,21 +12,21 @@ from sympy import *
 
 def calc_oxygen(args, Mine_in, debug=False):
     #TODO: from web
-    Matte_Cu_Percentage = args.Matte_Cu_Percentage/100
-    Matte_Fe_Percentage = args.Matte_Fe_Percentage/100
-    Matte_S_Percentage = args.Matte_S_Percentage/100
-    Slag_Cu_Percentage = args.Slag_Cu_Percentage/100
-    Slag_S_Percentage = args.Slag_S_Percentage/100
-    Slag_Fe_Percentage = args.Slag_Fe_Percentage/100
+    Matte_Cu_Percentage  = args.Matte_Cu_Percentage/100
+    Matte_Fe_Percentage  = args.Matte_Fe_Percentage/100
+    Matte_S_Percentage   = args.Matte_S_Percentage/100
+    Slag_Cu_Percentage   = args.Slag_Cu_Percentage/100
+    Slag_S_Percentage    = args.Slag_S_Percentage/100
+    Slag_Fe_Percentage   = args.Slag_Fe_Percentage/100
     Slag_SiO2_Percentage = args.Slag_SiO2_Percentage/100
-    Flow = args.Flow
-    Fe2O3_vs_FeO = args.Fe2O3_vs_FeO
 
+    Oxygen_Peer_Coal     = args.OXYGEN_PEER_COAL
+    Coal_T               = args.COAL_T
+    Fe_vs_SiO2           = args.Fe_vs_SiO2
+    Fe2O3_vs_FeO         = args.Fe2O3_vs_FeO
+    Flow                 = args.Flow
     Oxygen_Concentration = args.OXYGEN_CONCENTRATION
-    Oxygen_Peer_Coal = args.OXYGEN_PEER_COAL
-    Coal_T = args.COAL_T
-    Fe_vs_SiO2 = args.Fe_vs_SiO2
-   #print(args.Matte_Cu_Percentage,args.Slag_Cu_Percentage,args.Slag_S_Percentage,args.Slag_Fe_Percentage,args.Slag_SiO2_Percentage,args.Flow , args.Fe2O3_vs_FeO)
+    #print(args.Matte_Cu_Percentage,args.Slag_Cu_Percentage,args.Slag_S_Percentage,args.Slag_Fe_Percentage,args.Slag_SiO2_Percentage,args.Flow , args.Fe2O3_vs_FeO)
 
     #Cu in Mine  (T)
     Mine_Cu_T = (Flow - Flow*Mine_in.H2O/100)*Mine_in.Cu/100
@@ -36,10 +36,10 @@ def calc_oxygen(args, Mine_in, debug=False):
 
     #Matte 冰铜 (%)
     #Matte_Cu_Percentage = Cu% = x*Mass(Cu)*2/(x*Mass(Cu2S) + (1-x)*Mass(FeS))
-    x = 11*Matte_Cu_Percentage/(16-9*Matte_Cu_Percentage)   #x为CuS含量, Matte_Cu_Percentage 0.74
-    calc_Matte_Cu_Percentage = Matte_Cu_Percentage
-    calc_Matte_Fe_Percentage = 7*(1-x)/(11+9*x)
-    calc_Matte_S_Percentage = 4/(11+9*x)
+    #x = 11*Matte_Cu_Percentage/(16-9*Matte_Cu_Percentage)   #x为CuS含量, Matte_Cu_Percentage 0.74
+    #calc_Matte_Cu_Percentage = Matte_Cu_Percentage
+    #calc_Matte_Fe_Percentage = 7*(1-x)/(11+9*x)
+    #calc_Matte_S_Percentage = 4/(11+9*x)
     #print("calc:", calc_Matte_Fe_Percentage, calc_Matte_S_Percentage, calc_Matte_Cu_Percentage)
 
     #Furnace Slag 熔炉渣  (%)
@@ -74,13 +74,13 @@ def calc_oxygen(args, Mine_in, debug=False):
     #(不考虑氧化铜)参加氧化反映的量 = 矿含总量 - 冰铜含总量（剩下的）
     Oxidated_Fe_T = Mine_Fe_T - Matte_Fe_T
     Oxidated_S_T = Mine_S_T - Matte_S_T - Slag_S_T
-    #2Fe + O2 = 2FeO ;   3Fe + 2O2 = Fe3O4  前者6 后者4
-    Oxygen_needed_T_by_Fe = Oxidated_Fe_T*(1-Fe2O3_vs_FeO)/112*32  + Oxidated_Fe_T*(Fe2O3_vs_FeO)/168*64
+    #2Fe + O2 = 2FeO ;   3Fe + 2O2 = Fe3O4  前者0.4 后者0.6
+    Oxygen_needed_T_by_Fe = Oxidated_Fe_T*(1/(1+1/Fe2O3_vs_FeO))/112*32  + Oxidated_Fe_T*(1-1/(1+1/Fe2O3_vs_FeO))/168*64
     Oxygen_needed_T_by_S = Oxidated_S_T*32*1/32
     Oxygen_needed_T = Oxygen_needed_T_by_Fe + Oxygen_needed_T_by_S
 
     #氧料比：
-    Oxygen_Volume = Oxygen_needed_T*1000/1.331058
+    Oxygen_Volume = Oxygen_needed_T*1000/32*22.4
     OxygenMaterialRatio = Oxygen_Volume/Flow
     if debug:
         embed()
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-Matte_Cu_Percentage", '--Matte_Cu_Percentage', type=float, default=0.74)
     parser.add_argument("-Flow", '--Flow', type=float, default=150)
-    parser.add_argument("-Fe2O3_vs_FeO", '--Fe2O3_vs_FeO', type=float, default=4/10)
+    parser.add_argument("-Fe2O3_vs_FeO", '--Fe2O3_vs_FeO', type=float, default=4/6)
     args = parser.parse_args()
 
     #Mine in 混合矿输入  
