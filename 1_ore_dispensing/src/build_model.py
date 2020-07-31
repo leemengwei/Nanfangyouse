@@ -322,31 +322,68 @@ def oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRa
 @cross_origin()
 def getFormula():   #temporary   API 0-2
     #随便搜索两个:
-    global args
     solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
     solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
+
     #从csv同时读入旧配方的预设参数，新配方的不用管，衔接的配方的参数以旧配方为准
-    args.Matte_Cu_Percentage  = solution_1.iloc[:,0].Matte_Cu_Percentage 
-    args.Matte_Fe_Percentage  = solution_1.iloc[:,0].Matte_Fe_Percentage
-    args.Matte_S_Percentage   = solution_1.iloc[:,0].Matte_S_Percentage  
-    args.Slag_Cu_Percentage   = solution_1.iloc[:,0].Slag_Cu_Percentage  
-    args.Slag_S_Percentage    = solution_1.iloc[:,0].Slag_S_Percentage   
-    args.Slag_Fe_Percentage   = solution_1.iloc[:,0].Slag_Fe_Percentage  
-    args.Slag_SiO2_Percentage = solution_1.iloc[:,0].Slag_SiO2_Percentage
-                                
-    args.OXYGEN_PEER_COAL     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
-    args.COAL_T               = solution_1.iloc[:,0].COAL_T
-    args.Fe_vs_SiO2           = solution_1.iloc[:,0].Fe_vs_SiO2
-    args.Fe2O3_vs_FeO         = solution_1.iloc[:,0].Fe2O3_vs_FeO
-    args.Flow                 = solution_1.iloc[:,0].Flow
-    args.OXYGEN_CONCENTRATION = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
+    Matte_Cu_Percentage_1  = solution_1.iloc[:,0].Matte_Cu_Percentage 
+    Matte_Fe_Percentage_1  = solution_1.iloc[:,0].Matte_Fe_Percentage
+    Matte_S_Percentage_1   = solution_1.iloc[:,0].Matte_S_Percentage  
+    Slag_Cu_Percentage_1   = solution_1.iloc[:,0].Slag_Cu_Percentage  
+    Slag_S_Percentage_1    = solution_1.iloc[:,0].Slag_S_Percentage   
+    Slag_Fe_Percentage_1   = solution_1.iloc[:,0].Slag_Fe_Percentage  
+    Slag_SiO2_Percentage_1 = solution_1.iloc[:,0].Slag_SiO2_Percentage
+    OXYGEN_PEER_COAL_1     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
+    COAL_T_1               = solution_1.iloc[:,0].COAL_T
+    Fe_vs_SiO2_1           = solution_1.iloc[:,0].Fe_vs_SiO2
+    Fe2O3_vs_FeO_1         = solution_1.iloc[:,0].Fe2O3_vs_FeO
+    Flow_1                 = solution_1.iloc[:,0].Flow
+    OXYGEN_CONCENTRATION_1 = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
+    MAX_TYPE_TO_SEARCH_1   = solution_1.iloc[:,0].MAX_TYPE_TO_SEARCH
+    RecallRate_1           = solution_1.iloc[:,0].RecallRate
+
+    #配方二的
+    Matte_Cu_Percentage_2  = solution_2.iloc[:,0].Matte_Cu_Percentage 
+    Matte_Fe_Percentage_2  = solution_2.iloc[:,0].Matte_Fe_Percentage
+    Matte_S_Percentage_2   = solution_2.iloc[:,0].Matte_S_Percentage  
+    Slag_Cu_Percentage_2   = solution_2.iloc[:,0].Slag_Cu_Percentage  
+    Slag_S_Percentage_2    = solution_2.iloc[:,0].Slag_S_Percentage   
+    Slag_Fe_Percentage_2   = solution_2.iloc[:,0].Slag_Fe_Percentage  
+    Slag_SiO2_Percentage_2 = solution_2.iloc[:,0].Slag_SiO2_Percentage
+    OXYGEN_PEER_COAL_2     = solution_2.iloc[:,0].OXYGEN_PEER_COAL
+    COAL_T_2               = solution_2.iloc[:,0].COAL_T
+    Fe_vs_SiO2_2           = solution_2.iloc[:,0].Fe_vs_SiO2
+    Fe2O3_vs_FeO_2         = solution_2.iloc[:,0].Fe2O3_vs_FeO
+    Flow_2                 = solution_2.iloc[:,0].Flow
+    OXYGEN_CONCENTRATION_2 = solution_2.iloc[:,0].OXYGEN_CONCENTRATION
+    MAX_TYPE_TO_SEARCH_2   = solution_2.iloc[:,0].MAX_TYPE_TO_SEARCH
+    RecallRate_2           = solution_2.iloc[:,0].RecallRate
+
+    #衔接配方的，默认用配方1的
+    Matte_Cu_Percentage_3  = solution_1.iloc[:,0].Matte_Cu_Percentage 
+    Matte_Fe_Percentage_3  = solution_1.iloc[:,0].Matte_Fe_Percentage
+    Matte_S_Percentage_3   = solution_1.iloc[:,0].Matte_S_Percentage  
+    Slag_Cu_Percentage_3   = solution_1.iloc[:,0].Slag_Cu_Percentage  
+    Slag_S_Percentage_3    = solution_1.iloc[:,0].Slag_S_Percentage   
+    Slag_Fe_Percentage_3   = solution_1.iloc[:,0].Slag_Fe_Percentage  
+    Slag_SiO2_Percentage_3 = solution_1.iloc[:,0].Slag_SiO2_Percentage
+    OXYGEN_PEER_COAL_3     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
+    COAL_T_3               = solution_1.iloc[:,0].COAL_T
+    Fe_vs_SiO2_3           = solution_1.iloc[:,0].Fe_vs_SiO2
+    Fe2O3_vs_FeO_3         = solution_1.iloc[:,0].Fe2O3_vs_FeO
+    Flow_3                 = solution_1.iloc[:,0].Flow
+    OXYGEN_CONCENTRATION_3 = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
+    MAX_TYPE_TO_SEARCH_3   = solution_1.iloc[:,0].MAX_TYPE_TO_SEARCH
+    RecallRate_3           = solution_1.iloc[:,0].RecallRate
     #氧料比也读出来，而且是两个配方的都读出来
-    oxygenMaterialRatio_1 = solution_1.iloc[:,0].OxygenMaterialRatio
-    oxygenMaterialRatio_2 = solution_2.iloc[:,0].OxygenMaterialRatio
+    oxygenMaterialRatio_1     = solution_1.iloc[:,0].OxygenMaterialRatio
+    oxygenMaterialRatio_2     = solution_2.iloc[:,0].OxygenMaterialRatio
 
     #随后丢掉这些列，web才能正常显示
     solution_1 = solution_1.dropna(axis=0)
     solution_2 = solution_2.dropna(axis=0)
+    solution_1 = np.round(solution_1, 5)  #Web display bug
+    solution_2 = np.round(solution_2, 5)  #Web display bug
     print("Solution read in")
 
     solution_1['formula'] = '1'
@@ -360,9 +397,9 @@ def getFormula():   #temporary   API 0-2
         'materialList':
             [
               {'formula':solution_1['formula'][0],
-              'elementsList':compute_element_overview(args, solution_1)},
+              'elementsList':compute_element_overview(solution_1)},
               {'formula':solution_2['formula'][0],
-              'elementsList':compute_element_overview(args, solution_2)}
+              'elementsList':compute_element_overview(solution_2)}
             ],
         "oxygenMaterialRatio":
             {
@@ -370,22 +407,60 @@ def getFormula():   #temporary   API 0-2
               "formula2": round(oxygenMaterialRatio_2, 2),
               "formula*": '计算后下方显示',
             },
-         "presetParameter":
+         "presetParameter_1":
             {
-             'matteTargetGradePercentage': round(args.Matte_Cu_Percentage, 2),
-             'matteFePercentage': round(args.Matte_Fe_Percentage, 2),
-             'matteSPercentage': round(args.Matte_S_Percentage, 2),
-             'slagCuPercentage': round(args.Slag_Cu_Percentage, 2),
-             'slagFePercentage': round(args.Slag_Fe_Percentage, 2),
-             'slagSPercentage': round(args.Slag_S_Percentage, 2),
-             'slagSiO2Percentage': round(args.Slag_SiO2_Percentage, 2),
-             'maxType': round(args.MAX_TYPE_TO_SEARCH, 2),
-             'oxygenPeaCoalRatio': round(args.OXYGEN_PEER_COAL, 2),
-             'oxygenConcentration': round(args.OXYGEN_CONCENTRATION, 2),
-             'peaCoal': round(args.COAL_T, 2),
-             'FeSiO2Ratio': round(args.Fe_vs_SiO2, 2),
-             'consumedAmount': round(args.Flow, 2),
-            }
+             'matteTargetGradePercentage': round(Matte_Cu_Percentage_1, 2),
+             'matteFePercentage': round(Matte_Fe_Percentage_1, 2),
+             'matteSPercentage': round(Matte_S_Percentage_1, 2),
+             'slagCuPercentage': round(Slag_Cu_Percentage_1, 2),
+             'slagFePercentage': round(Slag_Fe_Percentage_1, 2),
+             'slagSPercentage': round(Slag_S_Percentage_1, 2),
+             'slagSiO2Percentage': round(Slag_SiO2_Percentage_1, 2),
+             'maxType': round(MAX_TYPE_TO_SEARCH_1, 2),
+             'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_1, 2),
+             'oxygenConcentration': round(OXYGEN_CONCENTRATION_1, 2),
+             'peaCoal': round(COAL_T_1, 2),
+             'FeSiO2Ratio': round(Fe_vs_SiO2_1, 2),
+             'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_1, 2),
+             'consumedAmount': round(Flow_1, 2),
+             'recallRate': round(RecallRate_1, 2),
+            },
+        "presetParameter_2":
+            {
+             'matteTargetGradePercentage': round(Matte_Cu_Percentage_2, 2),
+             'matteFePercentage': round(Matte_Fe_Percentage_2, 2),
+             'matteSPercentage': round(Matte_S_Percentage_2, 2),
+             'slagCuPercentage': round(Slag_Cu_Percentage_2, 2),
+             'slagFePercentage': round(Slag_Fe_Percentage_2, 2),
+             'slagSPercentage': round(Slag_S_Percentage_2, 2),
+             'slagSiO2Percentage': round(Slag_SiO2_Percentage_2, 2),
+             'maxType': round(MAX_TYPE_TO_SEARCH_2, 2),
+             'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_2, 2),
+             'oxygenConcentration': round(OXYGEN_CONCENTRATION_2, 2),
+             'peaCoal': round(COAL_T_2, 2),
+             'FeSiO2Ratio': round(Fe_vs_SiO2_2, 2),
+             'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_2, 2),
+             'consumedAmount': round(Flow_2, 2),
+             'recallRate': round(RecallRate_2, 2),
+            },
+        "presetParameter_3":
+            {
+             'matteTargetGradePercentage': round(Matte_Cu_Percentage_3, 2),
+             'matteFePercentage': round(Matte_Fe_Percentage_3, 2),
+             'matteSPercentage': round(Matte_S_Percentage_3, 2),
+             'slagCuPercentage': round(Slag_Cu_Percentage_3, 2),
+             'slagFePercentage': round(Slag_Fe_Percentage_3, 2),
+             'slagSPercentage': round(Slag_S_Percentage_3, 2),
+             'slagSiO2Percentage': round(Slag_SiO2_Percentage_3, 2),
+             'maxType': round(MAX_TYPE_TO_SEARCH_3, 2),
+             'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_3, 2),
+             'oxygenConcentration': round(OXYGEN_CONCENTRATION_3, 2),
+             'peaCoal': round(COAL_T_3, 2),
+             'FeSiO2Ratio': round(Fe_vs_SiO2_3, 2),
+             'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_3, 2),
+             'consumedAmount': round(Flow_3, 2),
+             'recallRate': round(RecallRate_3, 2),
+            },
          }
     return jsonify(res_data)
 
@@ -393,8 +468,10 @@ def getFormula():   #temporary   API 0-2
 @app.route('/api/quick_recommend', methods=['POST', 'GET'])
 @cross_origin()
 def quick_recommend():   #API 3  
+    global args  #这里要给args加冰铜参数等。
     args.ADJUSTED_TOKEN = False  #NOTE:细节每次recommend，清空手选表的一个状态，该状态帮助手选的update函数
     req_data = request.get_json()
+    #Web-set solution:
     solution_1 = []
     solution_2 = []
     for i in req_data['list'][0]:
@@ -406,6 +483,30 @@ def quick_recommend():   #API 3
     #NOTE:传订单1（被衔接）当时的手动修改的库存状态。
     solution_1['inventory'] = copy.deepcopy(solution_1['inventoryBalance'])
     solution_2['inventory'] = copy.deepcopy(solution_2['inventoryBalance'])  #NOTE: inventoryBalance是配方2生产后理论剩余
+
+    #Web-set parameters: (注意指的是新订单的各个量)
+    try:                        #TODO
+        req_data['presetParameter_3'] = req_data['presetParameter']
+    except:
+        pass
+    args.Matte_Cu_Percentage = req_data['presetParameter_3']['matteTargetGradePercentage']
+    args.Matte_Fe_Percentage = req_data['presetParameter_3']['matteFePercentage']
+    args.Matte_S_Percentage = req_data['presetParameter_3']['matteSPercentage']
+    args.Slag_Cu_Percentage = req_data['presetParameter_3']['slagCuPercentage']
+    args.Slag_Fe_Percentage = req_data['presetParameter_3']['slagFePercentage']
+    args.Slag_S_Percentage = req_data['presetParameter_3']['slagSPercentage']
+    args.Slag_SiO2_Percentage = req_data['presetParameter_3']['slagSiO2Percentage']
+    args.MAX_TYPE_TO_SEARCH = req_data['presetParameter_3']['maxType']
+    args.OXYGEN_PEER_COAL = req_data['presetParameter_3']['oxygenPeaCoalRatio']
+    args.OXYGEN_CONCENTRATION = req_data['presetParameter_3']['oxygenConcentration']
+    args.COAL_T = req_data['presetParameter_3']['peaCoal']
+    args.Fe_vs_SiO2 = req_data['presetParameter_3']['FeSiO2Ratio']
+    #args.Fe2O3_vs_FeO = req_data['presetParameter_3']['Fe2O3_vs_FeO']  #TODO
+    args.Fe2O3_vs_FeO = 0.66667
+    args.Flow = req_data['presetParameter_3']['consumedAmount']
+    #args.RecallRate = req_data['presetParameter_3']['recallRate']  #TODO
+    args.RecallRate = 0.98
+
     def get_compose_solution_from_to(solution_2, solution_1):   #Pick from 2, add into 1
         concat_solution = pd.DataFrame([])
         concat_oxygen = np.array([])
@@ -419,19 +520,19 @@ def quick_recommend():   #API 3
         #特殊处理用户指定的fixed part，先取出来
         solution_1_fixed_part = solution_1[solution_1['fixed'] == 1]  #诸如渣精矿可以勾选fixed
         ratio_taken = sum(solution_1['calculatePercentage'][solution_1_fixed_part.index].values)
-        solution_1 = solution_1.drop(solution_1_fixed_part.index)
-        solution_1_short_types = solution_1[solution_1['cohesion'] == 1].index  #让用户选择需要衔接哪一个
+        dropped_solution_1 = solution_1.drop(solution_1_fixed_part.index)
+        solution_1_short_types = dropped_solution_1[dropped_solution_1['cohesion'] == 1].index  #让用户选择需要衔接哪一个
         solution_2_short_types = solution_2[solution_2['inventoryBalance'] <= 300].index
-        solution_1_types_avaliable = list(set(solution_1.index) - set(solution_1_short_types))
-        solution_2_types_avaliable = list(set(solution_2.index) - set(solution_2_short_types) - set(solution_1.index))  #NOTE: 1、2相同的项不在这个变量中考虑，下面会补充搜索‘不添加任何项’来考虑。
-        if (solution_1.loc[solution_1_types_avaliable, 'inventory'] == 0).any():
+        solution_1_types_avaliable = list(set(dropped_solution_1.index) - set(solution_1_short_types))
+        solution_2_types_avaliable = list(set(solution_2.index) - set(solution_2_short_types) - set(dropped_solution_1.index))  #NOTE: 1、2相同的项不在这个变量中考虑，下面会补充搜索‘不添加任何项’来考虑。
+        if (dropped_solution_1.loc[solution_1_types_avaliable, 'inventory'] == 0).any():
             status = 'Error! 目前总消耗为0, 请检查并衔接配方1中的0库存量物料，将之标记为衔接或排除，结果无意义'
-            return solution_1, oxygenMaterialRatio_1, status
+            return dropped_solution_1, oxygenMaterialRatio_1, status
         combinations_more_to_less = list(itertools.combinations(list(solution_2.loc[solution_2_types_avaliable].sort_values('inventoryBalance').index[::-1]), len(solution_1_short_types)))
         combinations_more_to_less.insert(0, '')   #添加一个空项目进来，即‘不混入任何配方2’。
         #把新的2混到旧的1中
         for i in combinations_more_to_less:
-            tmp_solution_1 = solution_1.drop(solution_1_short_types)   #耗尽项空出来
+            tmp_solution_1 = dropped_solution_1.drop(solution_1_short_types)   #耗尽项空出来
             index_after_drop = list(set(tmp_solution_1.index) - set(args.NOT_COMPUTE))
             tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]]) 
             print("Searching... ",i, tmp_solution_1.index)
@@ -519,7 +620,7 @@ def quick_update(by_update_2=False):   #API 2
     old_ratio = copy.deepcopy(web_solution['calculatePercentage'])
     #当时衔接页面传过来的时候有一种手选的可能：
     if by_update_2:  
-        if sum(web_solution['manual']) > 0: #inventoryBalance是页面回传
+        if sum(web_solution['manual']) > 0: #inventoryBalance是页面回传 ,TODO :这里有无法解决的bug，需要界面回传inventory 而不是inventoryBalance
             if args.ADJUSTED_TOKEN == False:  #NOTE:细节每次recommend，清空手选表的一个状态，该状态帮助手选的update函数
                 web_solution['inventory'] = copy.deepcopy(web_solution['inventoryBalance'])
                 args.ADJUSTED_TOKEN = True
@@ -604,7 +705,7 @@ def web_ratio_int(best_solution):
                 for i in range(abs(need_to_add)): 
                     interger_ratio[drifts_ascending.index[i]] -= 0.01
                     print("Cutting ", drifts_ascending.index[i])
-        best_solution['calculatePercentage'] = np.round(interger_ratio, 6)  #Web display bug
+        best_solution['calculatePercentage'] = np.round(interger_ratio, 5)  #Web display bug
     except:
         print("Ratio error!! pass")
     return best_solution
@@ -619,7 +720,7 @@ def web_consumption_int(best_solution):
     #    best_solution.loc[index, 'calculatePercentage'] = str(best_solution.loc[index, 'calculatePercentage'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
     return best_solution
 
-def compute_element_overview(args, storage):
+def compute_element_overview(storage):
     new_res_element = []
     for this_element in args.ELEMENTS:
         new_res_element.append({'name': this_element, 'percentage': np.round(sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']*storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), this_element]) / sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']), 2)})
@@ -651,6 +752,8 @@ def calculate():    #API 1,
     #args.Fe2O3_vs_FeO = req_data['presetParameter']['Fe2O3_vs_FeO']  #TODO
     args.Fe2O3_vs_FeO = 0.66667
     args.Flow = req_data['presetParameter']['consumedAmount']
+    #args.RecallRate = req_data['presetParameter']['recallRate']  #TODO
+    args.RecallRate = 0.98
     #For GA-par
     args.epoch = req_data['modelWeight']['gaEpoch']
     args.pop = int(int(req_data['modelWeight']['gaPop']/2)*2)
@@ -723,7 +826,6 @@ def calculate():    #API 1,
 @app.route('/api/getInventory', methods=['GET'])
 @cross_origin()
 def getInventory():    #API 0-1   temporary 演示版，实际不需要
-    global args
     #获取库存 for 显示
     inventory_storage = get_storage(for_web=True)
     #pandas to res_data
@@ -732,7 +834,7 @@ def getInventory():    #API 0-1   temporary 演示版，实际不需要
         "list": 
             res_data,
         'materialList': 
-            compute_element_overview(args, inventory_storage)
+            compute_element_overview(inventory_storage)
     }
     return jsonify(res_data)
 
