@@ -83,7 +83,7 @@ def calc_oxygen(args, Mine_in, debug=False):
     #氧料比：
     Oxygen_Volume = Oxygen_needed_T*1000/32*22.4
     OxygenMaterialRatio = Oxygen_Volume/Flow
-    if debug:
+    if 1:
         embed()
 
     #一次风量：

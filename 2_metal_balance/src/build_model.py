@@ -34,6 +34,7 @@ def compelete_basic_args(args, req_data):
     #####    args.material_out = pd.concat([args.material_out, this_out])
     #####old NOTE: 根据之前指定的material in和out，out取负值，随后用它给定ga上下限
     ####NOTE: 没有所谓的in和out，表中数据计算到消耗后，就应该是自平衡的，直接sum就应该为0，输出项的量也不再手动取负。此处仅仅取出一些值，用于evaluate时进行平衡计算。
+    #上期盘点：
     args.lastBalanceDry             = data['lastBalanceDry'].values
     args.lastBalancepercentageCu    = data['lastBalancepercentageCu'].values
     #args.lastBalanceCu              = data['lastBalanceCu'].values
@@ -41,6 +42,7 @@ def compelete_basic_args(args, req_data):
     #args.lastBalanceAu              = data['lastBalanceAu'].values
     args.lastBalanceUnitageAg       = data['lastBalanceUnitageAg'].values
     #args.lastBalanceAg              = data['lastBalanceAg'].values
+    #本期投入：
     args.currentIncomeDry           = data['currentIncomeDry'].values
     args.currentIncomePercentageCu  = data['currentIncomePercentageCu'].values
     #args.currentIncomeCu            = data['currentIncomeCu'].values
@@ -48,6 +50,7 @@ def compelete_basic_args(args, req_data):
     #args.currentIncomeAg            = data['currentIncomeAg'].values
     args.currentIncomeUnitageAu     = data['currentIncomeUnitageAu'].values
     #args.currentIncomeAu            = data['currentIncomeAu'].values
+    #本期盘点：
     args.currentBalanceDry          = data['currentBalanceDry'].values
     args.currentBalancePercentageCu = data['currentBalancePercentageCu'].values
     #args.currentBalanceCu           = data['currentBalanceCu'].values
