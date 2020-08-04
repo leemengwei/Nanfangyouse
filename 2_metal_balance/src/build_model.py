@@ -17,7 +17,7 @@ def compelete_basic_args(args, req_data):
     args.data_all = miscs.req_to_pd(req_data)
     #数据准备与计算部分
     args.data_all['name'] = list(args.data_all.index)
-    args.data_all = args.data_all.set_index('number')
+    #args.data_all = args.data_all.set_index('number')
     args.data_all = args.data_all.fillna(0)
     data = args.data_all
     #不再区分输入输出：------------------------------------------------------
@@ -234,16 +234,24 @@ def correct_data():    #API
     args.data_all['currentBalancePercentageCu'] = np.abs(np.round(ga_Cu.flatten()))
     args.data_all['currentBalanceUnitageAu'] = np.abs(np.round(ga_Au.flatten()))
     args.data_all['currentBalanceUnitageAg'] = np.abs(np.round(ga_Ag.flatten()))
+    args.data_all['currentCostDry'] = args.data_all['lastBalanceDry'] + args.data_all['currentIncomeDry'] - args.data_all['currentBalanceDry']
+    args.data_all['currentCostCu'] = args.data_all['lastBalanceDry']*args.data_all['lastBalancepercentageCu']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomePercentageCu']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalancePercentageCu']/100
+    args.data_all['currentCostAg'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAg']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAg']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAg']/100)/1000
+    args.data_all['currentCostAu'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAu']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAu']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAu']/100)/1000
     #TODO: 需要同样更正'使用的量'
     args.data_all = args.data_all.fillna(0)
     args.data_all['number'] = args.data_all.index
-    #回收率
+    #全场回收率
     #铜回收率%=本月产出阴极铜、电积铜÷（本期使用原料+上月中间结存-本月中间结存-阳极泥）×100；
     #银回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100；
     #金回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
-    r_Ag = req['parameter']['recoveryAg']
-    r_Au = req['parameter']['recoveryAu']
-    r_Cu = req['parameter']['recoveryCu']
+    #熔炼厂回收率：
+    #铜回收率=本期产出阳极铜含铜÷（本期使用原料含铜+本期使用中间结存含铜-本期产出熔炼渣含铜-各种废？）×100
+    #Ag回收率=本期产出阳极铜含Ag÷（本期使用原料含Ag+本期使用中间结存含Ag-本期产出熔炼渣含Ag-各种废？）×100
+    #Au回收率=本期产出阳极铜含Au÷（本期使用原料含Au+本期使用中间结存含Au-本期产出熔炼渣含Au-各种废？）×100
+    #直收率是直接回收出来的产品和投入原料的比。回收率是指回收的产品和还有回收价值的渣类、烟尘等与投入的原料比值。
+    embed()
+    r_Cu = np.abs(args.data_all[args.data_all.material=='产品']['currentCostCu'].values/(args.data_all['currentCostCu'].values.sum()-args.data_all[args.data_all.material=='产品']['currentCostCu'].values))*100
     #返回部分
     res_data = miscs.pd_to_res(args.data_all)
     res_data = {
@@ -257,7 +265,7 @@ def correct_data():    #API
 if __name__ == '__main__':
     doc = '金属平衡需要解决‘什么样的真实值最优可能获得目前的观测值’的最大似然问题～求解过程见doc文档，此处从目标函数开始编程。'
     parser = argparse.ArgumentParser()
-    parser.add_argument("-E", '--EPOCH', type=int, default=200)
+    parser.add_argument("-E", '--EPOCH', type=int, default=100)
     parser.add_argument("-P", '--POP', type=int, default=2000)
     parser.add_argument('--WEIGHT_T_VOLUME', type=int, default=1)   #volume (T)
     parser.add_argument("--WEIGHT_CU_PERCENTAGE", type=int, default=1) 

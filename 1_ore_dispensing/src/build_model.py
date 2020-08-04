@@ -468,9 +468,8 @@ def getFormula():   #temporary   API 0-2
 @app.route('/api/quick_recommend', methods=['POST', 'GET'])
 @cross_origin()
 def quick_recommend():   #API 3  
-    global args  #这里要给args加冰铜参数等。
-    args.ADJUSTED_TOKEN = False  #NOTE:细节每次recommend，清空手选表的一个状态，该状态帮助手选的update函数
     req_data = request.get_json()
+    req_data['presetParameter'] = req_data['presetParameter_3']
     #Web-set solution:
     solution_1 = []
     solution_2 = []
@@ -481,31 +480,12 @@ def quick_recommend():   #API 3
     solution_1 = req_to_pd(solution_1)
     solution_2 = req_to_pd(solution_2)
     #NOTE:传订单1（被衔接）当时的手动修改的库存状态。
-    solution_1['inventory'] = copy.deepcopy(solution_1['inventoryBalance'])
-    solution_2['inventory'] = copy.deepcopy(solution_2['inventoryBalance'])  #NOTE: inventoryBalance是配方2生产后理论剩余
+    solution_1['inventoryBalance'] = copy.deepcopy(solution_1['inventory'])
+    solution_2['inventoryBalance'] = copy.deepcopy(solution_2['inventory']) 
 
     #Web-set parameters: (注意指的是新订单的各个量)
-    try:                        #TODO
-        req_data['presetParameter_3'] = req_data['presetParameter']
-    except:
-        pass
-    args.Matte_Cu_Percentage = req_data['presetParameter_3']['matteTargetGradePercentage']
-    args.Matte_Fe_Percentage = req_data['presetParameter_3']['matteFePercentage']
-    args.Matte_S_Percentage = req_data['presetParameter_3']['matteSPercentage']
-    args.Slag_Cu_Percentage = req_data['presetParameter_3']['slagCuPercentage']
-    args.Slag_Fe_Percentage = req_data['presetParameter_3']['slagFePercentage']
-    args.Slag_S_Percentage = req_data['presetParameter_3']['slagSPercentage']
-    args.Slag_SiO2_Percentage = req_data['presetParameter_3']['slagSiO2Percentage']
-    args.MAX_TYPE_TO_SEARCH = req_data['presetParameter_3']['maxType']
-    args.OXYGEN_PEER_COAL = req_data['presetParameter_3']['oxygenPeaCoalRatio']
-    args.OXYGEN_CONCENTRATION = req_data['presetParameter_3']['oxygenConcentration']
-    args.COAL_T = req_data['presetParameter_3']['peaCoal']
-    args.Fe_vs_SiO2 = req_data['presetParameter_3']['FeSiO2Ratio']
-    #args.Fe2O3_vs_FeO = req_data['presetParameter_3']['Fe2O3_vs_FeO']  #TODO
-    args.Fe2O3_vs_FeO = 0.66667
-    args.Flow = req_data['presetParameter_3']['consumedAmount']
-    #args.RecallRate = req_data['presetParameter_3']['recallRate']  #TODO
-    args.RecallRate = 0.98
+    global args  #这里要给args加冰铜参数等。
+    args = get_presets(args, req_data)
 
     def get_compose_solution_from_to(solution_2, solution_1):   #Pick from 2, add into 1
         concat_solution = pd.DataFrame([])
@@ -554,14 +534,14 @@ def quick_recommend():   #API 3
             concat_solution = compose_solutions[np.array(compose_consumed_amounts_sorter).argmax()]
             concat_oxygen = oxygenMaterialRatios[np.array(compose_consumed_amounts_sorter).argmax()]
             if len(concat_solution)!=len(solution_1):
-                add_ons = '（不填加任何配方2项目，仅调整比例即可满足继续生产需求）'
+                add_ons = '（不填加任何配方2项目，仅调整非衔接项的比例即可满足继续生产需求）'
             else:
                 add_ons = ''
             status = "Okay, 搜索完毕，在所有可行解组合中找到的物料剩余较小情况解已给出，如有需求，可考虑手动微调比例" + add_ons
         else:
             status = "Error, 衔接搜索结束，暂无法满足氧料比要求，将返回原配方1，可尝试再试一次或人工衔接."
             if not (len(solution_1_short_types)<=len(solution_2_types_avaliable)):
-                status += "另外请注意：配方1、2除去共同物料后(相同项不应存在衔接需求，会在生产中自然衔接)，2号配料单中其他较安全的可选衔接物料已经不够（生产理论剩余后<300t的不被内部算法视作可衔接项，以防影响下次配方生产）"
+                status += "另外需要注意：配方1、2除去共同物料后(相同项不应存在衔接需求，会在生产中自然衔接)，2号配料单中其他较安全的可选衔接物料已经不够（生产理论剩余后<300t的不被内部算法视作可衔接项，以防影响下次配方生产）"
             print(status)
             print(solution_1, oxygenMaterialRatio_1)
             print(solution_2, oxygenMaterialRatio_2)
@@ -610,30 +590,26 @@ def quick_recommend():   #API 3
 def quick_update2():   #API 4
     res_data = quick_update(by_update_2=True).json
     res_data['recommended'] = '(手动调整返回)'
+    
     return jsonify(res_data)
 
 @app.route('/api/quick_update', methods=['POST', 'GET'])
 @cross_origin()
 def quick_update(by_update_2=False):   #API 2 
     req_data = request.get_json()
+    #每次快速更新都重新获取界面设置的生产参数
+    if by_update_2:
+        req_data['presetParameter'] = req_data['presetParameter_3']
+    global args
+    args = get_presets(args, req_data)
+
     web_solution = req_to_pd(req_data['list'])
     old_ratio = copy.deepcopy(web_solution['calculatePercentage'])
-    #当时衔接页面传过来的时候有一种手选的可能：
-    if by_update_2:  
-        if sum(web_solution['manual']) > 0: #inventoryBalance是页面回传 ,TODO :这里有无法解决的bug，需要界面回传inventory 而不是inventoryBalance
-            if args.ADJUSTED_TOKEN == False:  #NOTE:细节每次recommend，清空手选表的一个状态，该状态帮助手选的update函数
-                web_solution['inventory'] = copy.deepcopy(web_solution['inventoryBalance'])
-                args.ADJUSTED_TOKEN = True
-            else:
-                pass
+    
     #如果网页回传了adjustRatio，则接下来mix所用的ratio响应调整。
-    try:
-        for i in web_solution.iterrows():
-            web_solution.loc[i[0], 'calculatePercentage'] = web_solution.loc[i[0], 'adjustRatio']
-            web_solution.loc[i[0], 'calculatePercentage'] = web_solution.loc[i[0], 'adjustRatio']
-    except:
-        for i in web_solution.iterrows():
-            web_solution.loc[i[0], 'adjustRatio'] = web_solution.loc[i[0], 'calculatePercentage']
+    for i in web_solution.iterrows():
+        web_solution.loc[i[0], 'calculatePercentage'] = float(web_solution.loc[i[0], 'adjustRatio'])
+        web_solution.loc[i[0], 'calculatePercentage'] = float(web_solution.loc[i[0], 'adjustRatio'])
     web_solution = web_ratio_int(web_solution)
     adjust_solution, element_output = mixing(args, web_solution)
     adjust_solution = web_consumption_int(adjust_solution)
@@ -726,34 +702,37 @@ def compute_element_overview(storage):
         new_res_element.append({'name': this_element, 'percentage': np.round(sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']*storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), this_element]) / sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']), 2)})
     return new_res_element
 
+def get_presets(args, req_data):
+    args.Matte_Cu_Percentage  = float(req_data['presetParameter']['matteTargetGradePercentage'])
+    args.Matte_Fe_Percentage  = float(req_data['presetParameter']['matteFePercentage'])
+    args.Matte_S_Percentage   = float(req_data['presetParameter']['matteSPercentage'])
+    args.Slag_Cu_Percentage   = float(req_data['presetParameter']['slagCuPercentage'])
+    args.Slag_Fe_Percentage   = float(req_data['presetParameter']['slagFePercentage'])
+    args.Slag_S_Percentage    = float(req_data['presetParameter']['slagSPercentage'])
+    args.Slag_SiO2_Percentage = float(req_data['presetParameter']['slagSiO2Percentage'])
+    args.MAX_TYPE_TO_SEARCH   = int(req_data['presetParameter']['maxType'])
+    args.OXYGEN_PEER_COAL     = float(req_data['presetParameter']['oxygenPeaCoalRatio'])
+    args.OXYGEN_CONCENTRATION = float(req_data['presetParameter']['oxygenConcentration'])
+    args.COAL_T               = float(req_data['presetParameter']['peaCoal'])
+    args.Fe_vs_SiO2           = float(req_data['presetParameter']['FeSiO2Ratio'])
+    args.Fe2O3_vs_FeO         = float(req_data['presetParameter']['Fe2O3_vs_FeO'])
+    args.Flow                 = float(req_data['presetParameter']['consumedAmount'])
+    args.RecallRate           = float(req_data['presetParameter']['recallRate'])
+    return args
+
 @app.route('/api/calculate', methods=['POST', 'GET'])
 @cross_origin()
 def calculate():    #API 1,
     req_data = request.get_json()
-    global args
 
     #req_data to pd:
     pd_data = req_to_pd(req_data['list'])
-    args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存，周工必须这么传给我
 
     #Web-set parameters
-    args.Matte_Cu_Percentage = req_data['presetParameter']['matteTargetGradePercentage']
-    args.Matte_Fe_Percentage = req_data['presetParameter']['matteFePercentage']
-    args.Matte_S_Percentage = req_data['presetParameter']['matteSPercentage']
-    args.Slag_Cu_Percentage = req_data['presetParameter']['slagCuPercentage']
-    args.Slag_Fe_Percentage = req_data['presetParameter']['slagFePercentage']
-    args.Slag_S_Percentage = req_data['presetParameter']['slagSPercentage']
-    args.Slag_SiO2_Percentage = req_data['presetParameter']['slagSiO2Percentage']
-    args.MAX_TYPE_TO_SEARCH = req_data['presetParameter']['maxType']
-    args.OXYGEN_PEER_COAL = req_data['presetParameter']['oxygenPeaCoalRatio']
-    args.OXYGEN_CONCENTRATION = req_data['presetParameter']['oxygenConcentration']
-    args.COAL_T = req_data['presetParameter']['peaCoal']
-    args.Fe_vs_SiO2 = req_data['presetParameter']['FeSiO2Ratio']
-    #args.Fe2O3_vs_FeO = req_data['presetParameter']['Fe2O3_vs_FeO']  #TODO
-    args.Fe2O3_vs_FeO = 0.66667
-    args.Flow = req_data['presetParameter']['consumedAmount']
-    #args.RecallRate = req_data['presetParameter']['recallRate']  #TODO
-    args.RecallRate = 0.98
+    global args
+    args = get_presets(args, req_data)
+    args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存
+
     #For GA-par
     args.epoch = req_data['modelWeight']['gaEpoch']
     args.pop = int(int(req_data['modelWeight']['gaPop']/2)*2)
@@ -765,9 +744,9 @@ def calculate():    #API 1,
     elements = {} 
     priorities = []
     for i in req_data['elementsTargetList']: 
-        elements.update({i['name']:[i['percentage']]})
+        elements.update({i['name']:[float(i['percentage'])]})
         try:
-            priorities.append(i['priority'])
+            priorities.append(float(i['priority']))
         except:
             priorities.append(0)
     if len(priorities) != 0:
