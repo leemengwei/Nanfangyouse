@@ -227,7 +227,7 @@ def run_rand(args):
 
 def run_opt(args):
     blobs = []
-    pool_num = int(cpu_count())
+    pool_num = int(cpu_count()/2)
     print('Run times and pool num', pool_num)
     pool = Pool(processes = pool_num)   #这个固定死，效率最高,跟做多少次没关系
     struct_list = []
