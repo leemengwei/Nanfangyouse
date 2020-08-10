@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+*/output/
+commons/pngs/
 *.pdf
 __pycache__/
 *.py[cod]
