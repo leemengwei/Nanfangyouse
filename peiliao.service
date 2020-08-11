@@ -1,0 +1,13 @@
+[Unit]
+Description=pingheng manager service
+Requires=network.target
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/user/miniconda3/bin/python /mfs/home/limengwei/Nanfangyouse/1_ore_dispensing/src/build_model.py
+
+[Install]
+WantedBy=multi-user.target
+
+
