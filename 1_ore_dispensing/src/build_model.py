@@ -208,9 +208,9 @@ def run_opt_map(struct):   #map需要，多线程调用GA
     best_solution = generate_full_solution(best_ratio)
 
     Y_history = pd.DataFrame(ga.all_history_Y)
-    fig, ax = plt.subplots(2, 1)
-    ax[0].plot(Y_history.index, Y_history.values, '.', color='red')
-    Y_history.min(axis=1).cummin().plot(kind='line')
+    #fig, ax = plt.subplots(2, 1)
+    #ax[0].plot(Y_history.index, Y_history.values, '.', color='red')
+    #Y_history.min(axis=1).cummin().plot(kind='line')
     #plt.show()
     return best_gay, best_ratio, best_solution
 

@@ -149,7 +149,7 @@ def evaluation(ga_T, ga_Cu, ga_Au, ga_Ag):
     #Au_balance = np.abs((T_in * Au_in).sum(axis=1) + (T_out * Au_out).sum(axis=1))
     #Ag_balance = np.abs((T_in * Ag_in).sum(axis=1) + (T_out * Ag_out).sum(axis=1))
     #NOTE:各个平衡的新表达如下：本期使用每个元素维度加和都为零（求最小）即为平衡
-    Cu_balance = np.abs((args.lastBalanceDry*args.lastBalancePercentageCu + args.currentIncomeDry*args.currentIncomePercentageCu - ga_T*ga_Cu).sum(axis=1))/100   #% --> /100
+    Cu_balance = np.abs((args.lastBalanceDry*args.lastBalancePercentageCu + args.currentIncomeDry*args.currentIncomePercentageCu - ga_T*ga_Cu).sum(axis=1))/100   #% --> /100, t
     Au_balance = np.abs((args.lastBalanceDry*args.lastBalanceUnitageAu + args.currentIncomeDry*args.currentIncomeUnitageAu - ga_T*ga_Au).sum(axis=1))/1000        #g, kg -->/1000
     Ag_balance = np.abs((args.lastBalanceDry*args.lastBalanceUnitageAg + args.currentIncomeDry*args.currentIncomeUnitageAg - ga_T*ga_Ag).sum(axis=1))/1000        #g, kg -->/1000
     #单EPOCH， 大POP，使用均值MEAN作为自平衡系数（分母）：
@@ -221,45 +221,19 @@ def run_opt(args):
 
         plt.show()
     return best_gax, best_gay
-
-@app.route('/api/correct_data',methods=['POST', 'GET'])
-@cross_origin()
-def correct_data():    #API 
-    #输入部分
-    req = request.get_json()
-    global args
-    args = compelete_basic_args(args, req)
-
-    #优化部分
-    best_x, best_y = run_opt(args)
-    #把history pop一下，去掉最后一个单独的best。 
-    last_T_prob = args.T_prob_history.pop()[0]
-    last_Cu_prob = args.Cu_prob_history.pop()[0]
-    last_Au_prob = args.Au_prob_history.pop()[0]
-    last_Ag_prob = args.Ag_prob_history.pop()[0]
-    last_Cu_balance = args.Cu_balance_history.pop()[0]
-    last_Au_balance = args.Au_balance_history.pop()[0]
-    last_Ag_balance = args.Ag_balance_history.pop()[0]
-
-    #从各自的既定位置取出
-    best_x = best_x.reshape(-1, args.NUM_OF_TYPES_FOR_GA)
-    ga_T = best_x[:, :len(args.obs_T)]
-    ga_Cu = best_x[:, len(args.obs_T):len(args.obs_T)+len(args.obs_Cu)]
-    ga_Au = best_x[:, len(args.obs_T)+len(args.obs_Cu):len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au)]
-    ga_Ag = best_x[:, len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au):]
-    #放回要给web的列表, 这是盘点值，理应都是正的或0
-    args.data_all['currentBalanceDry'] = np.round(ga_T.flatten())
-    args.data_all['currentBalancePercentageCu'] = np.round(ga_Cu.flatten())
-    args.data_all['currentBalanceUnitageAu'] = np.round(ga_Au.flatten())
-    args.data_all['currentBalanceUnitageAg'] = np.round(ga_Ag.flatten())
+    
+def quick_compute(args):
+    args.data_all = args.data_all.fillna(0)
     #Cost 也相应更改
     args.data_all['currentCostDry'] = args.data_all['lastBalanceDry'] + args.data_all['currentIncomeDry'] - args.data_all['currentBalanceDry']
     args.data_all['currentCostCu'] = args.data_all['lastBalanceDry']*args.data_all['lastBalancePercentageCu']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomePercentageCu']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalancePercentageCu']/100
-    args.data_all['currentCostAg'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAg']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAg']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAg']/100)/1000
-    args.data_all['currentCostAu'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAu']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAu']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAu']/100)/1000
-    args.data_all = args.data_all.fillna(0)
+    args.data_all['currentCostAg'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAg'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAg'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAg'])  #g
+    args.data_all['currentCostAu'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAu'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAu'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAu'])  #g
+    Cu_balance = sum(args.data_all['currentCostCu'])   #% --> /100, t
+    Au_balance = sum(args.data_all['currentCostAu'])/1000        #g, kg -->/1000
+    Ag_balance = sum(args.data_all['currentCostAg'])/1000        #g, kg -->/1000
     #args.data_all['number'] = args.data_all.index
-    #全场回收率
+
     #铜回收率%=本月产出阴极铜、电积铜÷（本期使用原料+上月中间结存-本月中间结存-阳极泥）×100；
     #银回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100；
     #金回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
@@ -274,6 +248,19 @@ def correct_data():    #API
     recovery_Cu = np.abs((args.data_all[args.data_all.material!='原料']['currentCostCu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostCu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostCu'].values.sum()))*100
     recovery_Au = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAu'].values.sum()))*100
     recovery_Ag = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAg'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAg'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAg'].values.sum()))*100
+    return args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance
+
+@app.route('/api/quick_update',methods=['POST', 'GET'])
+@cross_origin()
+def quick_update():    #API 
+    #输入部分
+    req = request.get_json()
+    global args
+    args = compelete_basic_args(args, req)
+
+    #计算消耗、全场回收率
+    args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
+
     #返回部分
     res_data = miscs.pd_to_res(args.data_all)
     res_data = {
@@ -284,12 +271,63 @@ def correct_data():    #API
                         'recallAg':recall_Ag, \
                         'recallAu':recall_Au, \
                         'recallCu':recall_Cu, \
-                        'Ag_balance':last_Ag_balance, \
-                        'Au_balance':last_Au_balance, \
-                        'Cu_balance':last_Cu_balance},
+                        'Ag_balance':Ag_balance, \
+                        'Au_balance':Au_balance, \
+                        'Cu_balance':Cu_balance},
            'set': [0]
             }
     return jsonify(res_data)
+
+@app.route('/api/correct_data',methods=['POST', 'GET'])
+@cross_origin()
+def correct_data():    #API 
+    #输入部分
+    req = request.get_json()
+    global args
+    args = compelete_basic_args(args, req)
+
+    #优化部分
+    best_x, best_y = run_opt(args)
+    #把history pop一下，去掉最后一个单独的best。 
+    #last_T_prob = args.T_prob_history.pop()[0]
+    #last_Cu_prob = args.Cu_prob_history.pop()[0]
+    #last_Au_prob = args.Au_prob_history.pop()[0]
+    #last_Ag_prob = args.Ag_prob_history.pop()[0]
+    #last_Cu_balance = args.Cu_balance_history.pop()[0]
+    #last_Au_balance = args.Au_balance_history.pop()[0]
+    #last_Ag_balance = args.Ag_balance_history.pop()[0]
+
+    #从各自的既定位置取出
+    best_x = best_x.reshape(-1, args.NUM_OF_TYPES_FOR_GA)
+    ga_T = best_x[:, :len(args.obs_T)]
+    ga_Cu = best_x[:, len(args.obs_T):len(args.obs_T)+len(args.obs_Cu)]
+    ga_Au = best_x[:, len(args.obs_T)+len(args.obs_Cu):len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au)]
+    ga_Ag = best_x[:, len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au):]
+    #放回要给web的列表, 这是盘点值，理应都是正的或0
+    args.data_all['currentBalanceDry'] = np.round(ga_T.flatten())
+    args.data_all['currentBalancePercentageCu'] = np.round(ga_Cu.flatten())
+    args.data_all['currentBalanceUnitageAu'] = np.round(ga_Au.flatten())
+    args.data_all['currentBalanceUnitageAg'] = np.round(ga_Ag.flatten())
+    #计算消耗、全场回收率
+    args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
+
+    #返回部分
+    res_data = miscs.pd_to_res(args.data_all)
+    res_data = {
+           'list':res_data,
+           'parameter':{'recoveryAg':recovery_Ag, \
+                        'recoveryAu':recovery_Au, \
+                        'recoveryCu':recovery_Cu, \
+                        'recallAg':recall_Ag, \
+                        'recallAu':recall_Au, \
+                        'recallCu':recall_Cu, \
+                        'Ag_balance':Ag_balance, \
+                        'Au_balance':Au_balance, \
+                        'Cu_balance':Cu_balance},
+           'set': [0]
+            }
+    return jsonify(res_data)
+
 
 
 if __name__ == '__main__':
