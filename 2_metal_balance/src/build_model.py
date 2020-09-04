@@ -13,14 +13,18 @@ from flask_cors import cross_origin  #戚总-张驰API
 app = Flask(__name__)
 import miscs
 
-def compelete_basic_args(args, req):
+COLS = ['lastBalanceDry', 'lastBalancePercentageCu', 'lastBalanceUnitageAg', 'lastBalanceUnitageAu', 'lastBalanceCu', 'lastBalanceAu', 'lastBalanceAg', \
+        'currentIncomeDry', 'currentIncomeCu', 'currentIncomeAu', 'currentIncomeAg', 'currentIncomePercentageCu', 'currentIncomeUnitageAg', 'currentIncomeUnitageAu', \
+        'currentBalanceDry', 'currentBalancePercentageCu', 'currentBalanceUnitageAg', 'currentBalanceUnitageAu', 'currentBalanceCu', 'currentBalanceAu', 'currentBalanceAg', \
+        'currentCostAg', 'currentCostAu', 'currentCostCu', 'currentCostDry']
+
+def compelete_basic_args(args, req, by_correct_data=False):
+    args.AUTO_WEIGHTS = {}
     req_data = req['list']
-    req_settings = req['setting']
-    args.settings = miscs.req_to_pd(req_settings)
+    args.factory = req['factory']
     args.data_all = miscs.req_to_pd(req_data)
     #数据准备与计算部分
-    args.data_all['name'] = list(args.data_all.index)
-    #args.data_all = args.data_all.set_index('number')
+    args.data_all['name'] = 'token'.join(list(args.data_all.index)).replace(' ', '').split('token')
     args.data_all = args.data_all.fillna(0)
     args.data_all.loc[args.data_all['material']=='中间产品','material'] = '产品'  #NOTE: 都统一写为产品，要用做计算直收、回收率
     data = args.data_all
@@ -72,46 +76,51 @@ def compelete_basic_args(args, req):
     args.obs_Au = args.currentBalanceUnitageAu
     args.obs_Ag = args.currentBalanceUnitageAg
 
-    #方差variances: 
-    args.settings.currentBalanceDryVariance = args.settings.currentBalanceDryVariance.astype(float)
-    args.settings.currentBalancePercentageCuVariance = args.settings.currentBalancePercentageCuVariance.astype(float)
-    args.settings.currentBalanceUnitageAuVariance = args.settings.currentBalanceUnitageAuVariance.astype(float)
-    args.settings.currentBalanceUnitageAgVariance = args.settings.currentBalanceUnitageAgVariance.astype(float)
-    args.obs_variance_wrt_T  = (args.settings.currentBalanceDryVariance.values)**2 + epsilon
-    args.obs_variance_wrt_Cu = (args.settings.currentBalancePercentageCuVariance.values)**2 + epsilon
-    args.obs_variance_wrt_Au = (args.settings.currentBalanceUnitageAuVariance.values)**2 + epsilon
-    args.obs_variance_wrt_Ag = (args.settings.currentBalanceUnitageAgVariance.values)**2 + epsilon
-    #上下限bounds:
-    args.settings.currentBalancePercentageCuMin = args.settings.currentBalancePercentageCuMin.astype(float)
-    args.settings.currentBalancePercentageCuMax = args.settings.currentBalancePercentageCuMax.astype(float)
-    args.settings.currentBalanceDryMin = args.settings.currentBalanceDryMin.astype(float)
-    args.settings.currentBalanceDryMax = args.settings.currentBalanceDryMax.astype(float)
-    args.settings.currentBalanceUnitageAuMin = args.settings.currentBalanceUnitageAuMin.astype(float)
-    args.settings.currentBalanceUnitageAuMax = args.settings.currentBalanceUnitageAuMax.astype(float)
-    args.settings.currentBalanceUnitageAgMin = args.settings.currentBalanceUnitageAgMin.astype(float)
-    args.settings.currentBalanceUnitageAgMax = args.settings.currentBalanceUnitageAgMax.astype(float)
-    #NOTE: 铜的需要clip一下最大不超过99.5%
-    args.settings.currentBalancePercentageCuMin = np.clip(args.settings.currentBalancePercentageCuMin.values, 0, 99.5)
-    args.settings.currentBalancePercentageCuMax = np.clip(args.settings.currentBalancePercentageCuMax.values, 0, 99.5)
-    args.obs_T_bounds = np.array([args.settings.currentBalanceDryMin.values, args.settings.currentBalanceDryMax.values+epsilon])
-    args.obs_Cu_bounds = np.array([args.settings.currentBalancePercentageCuMin.values, args.settings.currentBalancePercentageCuMax.values+epsilon])
-    args.obs_Au_bounds = np.array([args.settings.currentBalanceUnitageAuMin.values, args.settings.currentBalanceUnitageAuMax.values+epsilon])
-    args.obs_Ag_bounds = np.array([args.settings.currentBalanceUnitageAgMin.values, args.settings.currentBalanceUnitageAgMax.values+epsilon])
-    #NOTE: 注意边界的顺序是：吨、铜、金、银
-    args.lower_bounds = np.hstack((args.obs_T_bounds[0,:], args.obs_Cu_bounds[0,:], args.obs_Au_bounds[0,:], args.obs_Ag_bounds[0,:]))
-    args.upper_bounds = np.hstack((args.obs_T_bounds[1,:], args.obs_Cu_bounds[1,:], args.obs_Au_bounds[1,:], args.obs_Ag_bounds[1,:]))
-    #如有必要，交换上下界
-    switch_index = np.where(args.lower_bounds > args.upper_bounds)
-    tmp_lower = copy.deepcopy(args.lower_bounds[switch_index])
-    args.lower_bounds[switch_index] = copy.deepcopy(args.upper_bounds[switch_index])
-    args.upper_bounds[switch_index] = tmp_lower
-    args.upper_bounds += epsilon   #Add tiny to aviod nan in GA
-
-    #GA basic:
-    args.NUM_OF_TYPES_FOR_GA = len(args.obs_T) + len(args.obs_Cu) + len(args.obs_Au) + len(args.obs_Ag)
-    #args.precisions = 1 / (10**(np.array([miscs.scale_and_precision(i)[1] for i in args.upper_bounds])+1))
-    #NOTE: precision & epsilon 的关系，否则会导致ga生成nan
-    args.precisions = 0.001*np.ones(shape=args.lower_bounds.shape)
+    if by_correct_data:
+        req_settings = req['setting']
+        args.settings = miscs.req_to_pd(req_settings)
+        #方差variances: 
+        args.settings.currentBalanceDryVariance = args.settings.currentBalanceDryVariance.astype(float)
+        args.settings.currentBalancePercentageCuVariance = args.settings.currentBalancePercentageCuVariance.astype(float)
+        args.settings.currentBalanceUnitageAuVariance = args.settings.currentBalanceUnitageAuVariance.astype(float)
+        args.settings.currentBalanceUnitageAgVariance = args.settings.currentBalanceUnitageAgVariance.astype(float)
+        args.obs_variance_wrt_T  = (args.settings.currentBalanceDryVariance.values)**2 + epsilon
+        args.obs_variance_wrt_Cu = (args.settings.currentBalancePercentageCuVariance.values)**2 + epsilon
+        args.obs_variance_wrt_Au = (args.settings.currentBalanceUnitageAuVariance.values)**2 + epsilon
+        args.obs_variance_wrt_Ag = (args.settings.currentBalanceUnitageAgVariance.values)**2 + epsilon
+        #上下限bounds:
+        args.settings.currentBalancePercentageCuMin = args.settings.currentBalancePercentageCuMin.astype(float)
+        args.settings.currentBalancePercentageCuMax = args.settings.currentBalancePercentageCuMax.astype(float)
+        args.settings.currentBalanceDryMin = args.settings.currentBalanceDryMin.astype(float)
+        args.settings.currentBalanceDryMax = args.settings.currentBalanceDryMax.astype(float)
+        args.settings.currentBalanceUnitageAuMin = args.settings.currentBalanceUnitageAuMin.astype(float)
+        args.settings.currentBalanceUnitageAuMax = args.settings.currentBalanceUnitageAuMax.astype(float)
+        args.settings.currentBalanceUnitageAgMin = args.settings.currentBalanceUnitageAgMin.astype(float)
+        args.settings.currentBalanceUnitageAgMax = args.settings.currentBalanceUnitageAgMax.astype(float)
+        #NOTE: 铜的需要clip一下最大不超过99.5%
+        args.settings.currentBalancePercentageCuMin = np.clip(args.settings.currentBalancePercentageCuMin.values, 0, 99.5)
+        args.settings.currentBalancePercentageCuMax = np.clip(args.settings.currentBalancePercentageCuMax.values, 0, 99.5)
+        args.obs_T_bounds = np.array([args.settings.currentBalanceDryMin.values, args.settings.currentBalanceDryMax.values+epsilon])
+        args.obs_Cu_bounds = np.array([args.settings.currentBalancePercentageCuMin.values, args.settings.currentBalancePercentageCuMax.values+epsilon])
+        args.obs_Au_bounds = np.array([args.settings.currentBalanceUnitageAuMin.values, args.settings.currentBalanceUnitageAuMax.values+epsilon])
+        args.obs_Ag_bounds = np.array([args.settings.currentBalanceUnitageAgMin.values, args.settings.currentBalanceUnitageAgMax.values+epsilon])
+        #NOTE: 注意边界的顺序是：吨、铜、金、银
+        args.lower_bounds = np.hstack((args.obs_T_bounds[0,:], args.obs_Cu_bounds[0,:], args.obs_Au_bounds[0,:], args.obs_Ag_bounds[0,:]))
+        args.upper_bounds = np.hstack((args.obs_T_bounds[1,:], args.obs_Cu_bounds[1,:], args.obs_Au_bounds[1,:], args.obs_Ag_bounds[1,:]))
+        #如有必要，交换上下界
+        switch_index = np.where(args.lower_bounds > args.upper_bounds)
+        tmp_lower = copy.deepcopy(args.lower_bounds[switch_index])
+        args.lower_bounds[switch_index] = copy.deepcopy(args.upper_bounds[switch_index])
+        args.upper_bounds[switch_index] = tmp_lower
+        args.upper_bounds += epsilon   #Add tiny to aviod nan in GA
+    
+        #GA basic:
+        args.NUM_OF_TYPES_FOR_GA = len(args.obs_T) + len(args.obs_Cu) + len(args.obs_Au) + len(args.obs_Ag)
+        #args.precisions = 1 / (10**(np.array([miscs.scale_and_precision(i)[1] for i in args.upper_bounds])+1))
+        #NOTE: precision & epsilon 的关系，否则会导致ga生成nan
+        args.precisions = 0.001*np.ones(shape=args.lower_bounds.shape)
+    else:
+        pass
     return args
 
 def GAwrapper(ga_outcomes):   #ga_outcomes是遗传算法给过来的,是需要优化得到的各种真实值:ground_truth.
@@ -152,6 +161,7 @@ def evaluation(ga_T, ga_Cu, ga_Au, ga_Ag):
     Cu_balance = np.abs((args.lastBalanceDry*args.lastBalancePercentageCu + args.currentIncomeDry*args.currentIncomePercentageCu - ga_T*ga_Cu).sum(axis=1))/100   #% --> /100, t
     Au_balance = np.abs((args.lastBalanceDry*args.lastBalanceUnitageAu + args.currentIncomeDry*args.currentIncomeUnitageAu - ga_T*ga_Au).sum(axis=1))/1000        #g, kg -->/1000
     Ag_balance = np.abs((args.lastBalanceDry*args.lastBalanceUnitageAg + args.currentIncomeDry*args.currentIncomeUnitageAg - ga_T*ga_Ag).sum(axis=1))/1000        #g, kg -->/1000
+    embed()
     #单EPOCH， 大POP，使用均值MEAN作为自平衡系数（分母）：
     if args.AUTO_WEIGHTS == {}:
         args.AUTO_WEIGHTS['T_prob_weights'] = T_prob.mean()
@@ -159,8 +169,8 @@ def evaluation(ga_T, ga_Cu, ga_Au, ga_Ag):
         args.AUTO_WEIGHTS['Au_prob_weights'] = Au_prob.mean()
         args.AUTO_WEIGHTS['Ag_prob_weights'] = Ag_prob.mean()
         args.AUTO_WEIGHTS['Cu_balance_weights'] = Cu_balance.mean()
-        args.AUTO_WEIGHTS['Au_balance_weights'] = 5*Au_balance.mean()
-        args.AUTO_WEIGHTS['Ag_balance_weights'] = 3*Ag_balance.mean()
+        args.AUTO_WEIGHTS['Au_balance_weights'] = Au_balance.mean()
+        args.AUTO_WEIGHTS['Ag_balance_weights'] = Ag_balance.mean()
         print("Auto weights generated:", args.AUTO_WEIGHTS)
 
     #GA适应度需要最大值，但GA自己取了负数，所以幂次直接求最小值即可，不用任何转换
@@ -224,109 +234,198 @@ def run_opt(args):
     
 def quick_compute(args):
     args.data_all = args.data_all.fillna(0)
-    #Cost 也相应更改
+    #上期结存干量:
+    args.data_all['lastBalanceCu'] = args.data_all['lastBalancePercentageCu'] * args.data_all['lastBalanceDry']/100
+    args.data_all['lastBalanceAu'] = args.data_all['lastBalanceUnitageAu'] * args.data_all['lastBalanceDry']/1000
+    args.data_all['lastBalanceAg'] = args.data_all['lastBalanceUnitageAg'] * args.data_all['lastBalanceDry']/1000
+    #本期收入干量:
+    args.data_all['currentIncomeCu'] = args.data_all['currentIncomePercentageCu'] * args.data_all['currentIncomeDry']/100
+    args.data_all['currentIncomeAu'] = args.data_all['currentIncomeUnitageAu'] * args.data_all['currentIncomeDry']/1000
+    args.data_all['currentIncomeAg'] = args.data_all['currentIncomeUnitageAg'] * args.data_all['currentIncomeDry']/1000
+    #本期结存干量:
+    args.data_all['currentBalanceCu'] = args.data_all['currentBalancePercentageCu'] * args.data_all['currentBalanceDry']/100
+    args.data_all['currentBalanceAu'] = args.data_all['currentBalanceUnitageAu'] * args.data_all['currentBalanceDry']/1000
+    args.data_all['currentBalanceAg'] = args.data_all['currentBalanceUnitageAg'] * args.data_all['currentBalanceDry']/1000
+    #本期使用Cost也相应更改
     args.data_all['currentCostDry'] = args.data_all['lastBalanceDry'] + args.data_all['currentIncomeDry'] - args.data_all['currentBalanceDry']
-    args.data_all['currentCostCu'] = args.data_all['lastBalanceDry']*args.data_all['lastBalancePercentageCu']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomePercentageCu']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalancePercentageCu']/100
-    args.data_all['currentCostAg'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAg'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAg'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAg'])  #g
-    args.data_all['currentCostAu'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAu'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAu'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAu'])  #g
-    Cu_balance = sum(args.data_all['currentCostCu'])   #% --> /100, t
-    Au_balance = sum(args.data_all['currentCostAu'])/1000        #g, kg -->/1000
-    Ag_balance = sum(args.data_all['currentCostAg'])/1000        #g, kg -->/1000
-    #args.data_all['number'] = args.data_all.index
+    args.data_all['currentCostCu'] = args.data_all['lastBalanceDry']*args.data_all['lastBalancePercentageCu']/100 + args.data_all['currentIncomeDry']*args.data_all['currentIncomePercentageCu']/100 - args.data_all['currentBalanceDry']*args.data_all['currentBalancePercentageCu']/100  #t
+    args.data_all['currentCostAg'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAg'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAg'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAg'])/1000  #kg
+    args.data_all['currentCostAu'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAu'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAu'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAu'])/1000  #kg
 
-    #铜回收率%=本月产出阴极铜、电积铜÷（本期使用原料+上月中间结存-本月中间结存-阳极泥）×100；
-    #银回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100；
-    #金回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
-    #熔炼厂回收率：
-    #铜回收率=本期产出阳极铜含铜÷（本期使用原料含铜+本期使用中间结存含铜-本期产出熔炼渣含铜-各种废？）×100
-    #Ag回收率=本期产出阳极铜含Ag÷（本期使用原料含Ag+本期使用中间结存含Ag-本期产出熔炼渣含Ag-各种废？）×100
-    #Au回收率=本期产出阳极铜含Au÷（本期使用原料含Au+本期使用中间结存含Au-本期产出熔炼渣含Au-各种废？）×100
-    #直收率recall是直接回收出来的产品和投入原料的比。回收率recovery是指回收的产品和还有回收价值的渣类、烟尘等(仅仅除去废料)与投入的原料比值。
+    Cu_balance = sum(args.data_all['currentCostCu'])
+    Au_balance = sum(args.data_all['currentCostAu'])
+    Ag_balance = sum(args.data_all['currentCostAg'])
+    #args.data_all['number'] = args.data_all.index
+    #recovery_Cu = np.abs((args.data_all[args.data_all.material!='原料']['currentCostCu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostCu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostCu'].values.sum()))*100
+    #recovery_Au = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAu'].values.sum()))*100
+    #recovery_Ag = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAg'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAg'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAg'].values.sum()))*100
+    #回收率recovery是指回收的产品和还有回收价值的渣类、烟尘等(仅仅除去废料)与投入的原料比值。
+    #直收率recall是直接回收出来的产品和投入原料的比。
+    if args.factory == '熔炼厂':  #熔炼厂：
+        #铜、银、金回收率%=本期产出阳极铜÷（本期使用原料+前期中间结存-本期中间结存-本期产出熔炼渣）×100
+        recovery_Cu = np.abs(args.data_all[args.data_all.name=='阳极铜']['currentCostCu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostCu'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostCu'].sum() - args.data_all[args.data_all.name=='熔炼渣']['currentCostCu'].sum()))*100
+        recovery_Au = np.abs(args.data_all[args.data_all.name=='阳极铜']['currentCostAu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAu'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostAu'].sum() - args.data_all[args.data_all.name=='熔炼渣']['currentCostAu'].sum()))*100
+        recovery_Ag = np.abs(args.data_all[args.data_all.name=='阳极铜']['currentCostAg'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAg'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostAg'].sum() - args.data_all[args.data_all.name=='熔炼渣']['currentCostAg'].sum()))*100
+    elif args.factory == '精炼厂':
+        #铜回收率%=本期产出阴极铜÷（本期使用原料+前期中间结存-本期中间结存-本期产出回收品）×100    #TODO:精炼厂：阴极铜没有啊
+        #银回收率%=本期产出阳极泥÷（本期使用原料+前期中间结存-本期中间结存-本期产出残极板-本期产出铜屑）×100
+        #金回收率%=本期产出阳极泥÷（本期使用原料+前期中间结存-本期中间结存-本期产出残极板-本期产出铜屑）×100
+        recovery_Cu = np.abs(args.data_all[args.data_all.name=='阴极铜']['currentCostCu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostCu'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostCu'].sum() - args.data_all[args.data_all.material=='回收品']['currentCostCu'].sum()))*100
+        recovery_Au = np.abs(args.data_all[args.data_all.name=='阳极泥']['currentCostAu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAu'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostAu'].sum() - args.data_all[args.data_all.name=='残极板']['currentCostAu'].sum() - args.data_all[args.data_all.name=='铜屑']['currentCostAu'].sum()))*100
+        recovery_Ag = np.abs(args.data_all[args.data_all.name=='阳极泥']['currentCostAg'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAg'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostAg'].sum() - args.data_all[args.data_all.name=='残极板']['currentCostAg'].sum() - args.data_all[args.data_all.name=='铜屑']['currentCostAg'].sum()))*100
+    elif args.factory == '综合厂':
+        #铜、金、银回收率%=本期产出渣精矿÷本期使用原料×100
+        recovery_Cu = np.abs(args.data_all[args.data_all.name=='渣精矿']['currentCostCu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostCu'].sum()))*100
+        recovery_Au = np.abs(args.data_all[args.data_all.name=='渣精矿']['currentCostAu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAu'].sum()))*100
+        recovery_Ag = np.abs(args.data_all[args.data_all.name=='渣精矿']['currentCostAg'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAg'].sum()))*100
+    elif args.factory == '全场':
+        #铜回收率%=本月产出阴极铜、电积铜÷（本期使用原料+上月中间结存-本月中间结存-阳极泥）×100    #TODO:包括旋流？
+        #银回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
+        #金回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
+        recovery_Cu = np.abs((args.data_all[args.data_all.name=='阴极铜']['currentCostCu'].sum() + args.data_all[args.data_all.name=='电积铜']['currentCostCu'].sum()) / (args.data_all[args.data_all.material=='原料']['currentCostCu'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostCu'].sum() - args.data_all[args.data_all.name=='阳极泥']['currentCostCu'].sum()))*100
+        recovery_Au = np.abs(args.data_all[args.data_all.name=='阳极泥']['currentCostAu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAu'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostAu'].sum()))*100
+        recovery_Ag = np.abs(args.data_all[args.data_all.name=='阳极泥']['currentCostAg'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAg'].sum() + args.data_all[args.data_all.material=='中间物料']['currentCostAg'].sum()))*100
+    else:
+        print("Error factory:", args.factory)
+    #Cu直收率=产品含Cu÷（本期使用原料含铜+本期使用中间结存含Cu-本期产出熔炼渣含Cu-各种废？）×100
+    #Ag直收率=产品含Ag÷（本期使用原料含Ag+本期使用中间结存含Ag-本期产出熔炼渣含Ag-各种废？）×100
+    #Au直收率=产品含Au÷（本期使用原料含Au+本期使用中间结存含Au-本期产出熔炼渣含Au-各种废？）×100
     recall_Cu = np.abs(args.data_all[args.data_all.material=='产品']['currentCostCu'].values.sum()/(args.data_all[args.data_all.material=='原料']['currentCostCu'].values.sum()))*100
     recall_Au = np.abs(args.data_all[args.data_all.material=='产品']['currentCostAu'].values.sum()/(args.data_all[args.data_all.material=='原料']['currentCostAu'].values.sum()))*100
     recall_Ag = np.abs(args.data_all[args.data_all.material=='产品']['currentCostAg'].values.sum()/(args.data_all[args.data_all.material=='原料']['currentCostAg'].values.sum()))*100
-    recovery_Cu = np.abs((args.data_all[args.data_all.material!='原料']['currentCostCu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostCu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostCu'].values.sum()))*100
-    recovery_Au = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAu'].values.sum()))*100
-    recovery_Ag = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAg'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAg'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAg'].values.sum()))*100
+
+    #round up1:
+    for col in COLS:
+        args.data_all[col] = np.round(args.data_all[col], 5)
+    #round up2:
+    recovery_Ag = np.round(recovery_Ag, 5)
+    recovery_Au = np.round(recovery_Au, 5)
+    recovery_Cu = np.round(recovery_Cu, 5)
+    recall_Ag = np.round(recall_Ag, 5)
+    recall_Au = np.round(recall_Au, 5)
+    recall_Cu = np.round(recall_Cu, 5)
+    Cu_balance = np.round(Cu_balance, 5)
+    Au_balance = np.round(Au_balance, 5)
+    Ag_balance = np.round(Ag_balance, 5)
     return args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance
 
 @app.route('/api/quick_update',methods=['POST', 'GET'])
 @cross_origin()
 def quick_update():    #API 
-    #输入部分
-    req = request.get_json()
-    global args
-    args = compelete_basic_args(args, req)
+    try:
+        #输入部分
+        req = request.get_json()
+        global args
+        args = compelete_basic_args(args, req, by_correct_data=False)
+    
+        #计算消耗、全场回收率
+        args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
+    
+        #返回部分
+        res_data = miscs.pd_to_res(args.data_all)
+        res_data = {
+               'list':res_data,
+               'parameter':{'recoveryAg':recovery_Ag, \
+                            'recoveryAu':recovery_Au, \
+                            'recoveryCu':recovery_Cu, \
+                            'recallAg':recall_Ag, \
+                            'recallAu':recall_Au, \
+                            'recallCu':recall_Cu, \
+                            'Ag_balance':Ag_balance, \
+                            'Au_balance':Au_balance, \
+                            'Cu_balance':Cu_balance},
+               'set': [0]
+                }
+        return jsonify(res_data)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
-    #计算消耗、全场回收率
-    args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
-
-    #返回部分
-    res_data = miscs.pd_to_res(args.data_all)
-    res_data = {
-           'list':res_data,
-           'parameter':{'recoveryAg':recovery_Ag, \
-                        'recoveryAu':recovery_Au, \
-                        'recoveryCu':recovery_Cu, \
-                        'recallAg':recall_Ag, \
-                        'recallAu':recall_Au, \
-                        'recallCu':recall_Cu, \
-                        'Ag_balance':Ag_balance, \
-                        'Au_balance':Au_balance, \
-                        'Cu_balance':Cu_balance},
-           'set': [0]
-            }
-    return jsonify(res_data)
+@app.route('/api/overall',methods=['POST', 'GET'])
+@cross_origin()
+def overall():    #API 
+    try:
+        req = request.get_json()
+        req['list'] = req['rlResizeList'] + req['jlResizeList'] + req['zhResizeList']
+        global args
+        args = compelete_basic_args(args, req, by_correct_data=False)
+        args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
+        res_data = miscs.pd_to_res(args.data_all)
+        res_data = {
+               'list':res_data,
+               'parameter':{'recoveryAg':recovery_Ag, \
+                            'recoveryAu':recovery_Au, \
+                            'recoveryCu':recovery_Cu, \
+                            'recallAg':recall_Ag, \
+                            'recallAu':recall_Au, \
+                            'recallCu':recall_Cu, \
+                            'Ag_balance':Ag_balance, \
+                            'Au_balance':Au_balance, \
+                            'Cu_balance':Cu_balance},
+               'set': [0]
+                }
+        return jsonify(res_data)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
 @app.route('/api/correct_data',methods=['POST', 'GET'])
 @cross_origin()
 def correct_data():    #API 
-    #输入部分
-    req = request.get_json()
-    global args
-    args = compelete_basic_args(args, req)
-
-    #优化部分
-    best_x, best_y = run_opt(args)
-    #把history pop一下，去掉最后一个单独的best。 
-    #last_T_prob = args.T_prob_history.pop()[0]
-    #last_Cu_prob = args.Cu_prob_history.pop()[0]
-    #last_Au_prob = args.Au_prob_history.pop()[0]
-    #last_Ag_prob = args.Ag_prob_history.pop()[0]
-    #last_Cu_balance = args.Cu_balance_history.pop()[0]
-    #last_Au_balance = args.Au_balance_history.pop()[0]
-    #last_Ag_balance = args.Ag_balance_history.pop()[0]
-
-    #从各自的既定位置取出
-    best_x = best_x.reshape(-1, args.NUM_OF_TYPES_FOR_GA)
-    ga_T = best_x[:, :len(args.obs_T)]
-    ga_Cu = best_x[:, len(args.obs_T):len(args.obs_T)+len(args.obs_Cu)]
-    ga_Au = best_x[:, len(args.obs_T)+len(args.obs_Cu):len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au)]
-    ga_Ag = best_x[:, len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au):]
-    #放回要给web的列表, 这是盘点值，理应都是正的或0
-    args.data_all['currentBalanceDry'] = np.round(ga_T.flatten())
-    args.data_all['currentBalancePercentageCu'] = np.round(ga_Cu.flatten())
-    args.data_all['currentBalanceUnitageAu'] = np.round(ga_Au.flatten())
-    args.data_all['currentBalanceUnitageAg'] = np.round(ga_Ag.flatten())
-    #计算消耗、全场回收率
-    args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
-
-    #返回部分
-    res_data = miscs.pd_to_res(args.data_all)
-    res_data = {
-           'list':res_data,
-           'parameter':{'recoveryAg':recovery_Ag, \
-                        'recoveryAu':recovery_Au, \
-                        'recoveryCu':recovery_Cu, \
-                        'recallAg':recall_Ag, \
-                        'recallAu':recall_Au, \
-                        'recallCu':recall_Cu, \
-                        'Ag_balance':Ag_balance, \
-                        'Au_balance':Au_balance, \
-                        'Cu_balance':Cu_balance},
-           'set': [0]
-            }
-    return jsonify(res_data)
+    try:
+        #输入部分
+        req = request.get_json()
+        global args
+        args = compelete_basic_args(args, req, by_correct_data=True)
+    
+        #优化部分
+        best_x, best_y = run_opt(args)
+        #把history pop一下，去掉最后一个单独的best。 
+        #last_T_prob = args.T_prob_history.pop()[0]
+        #last_Cu_prob = args.Cu_prob_history.pop()[0]
+        #last_Au_prob = args.Au_prob_history.pop()[0]
+        #last_Ag_prob = args.Ag_prob_history.pop()[0]
+        #last_Cu_balance = args.Cu_balance_history.pop()[0]
+        #last_Au_balance = args.Au_balance_history.pop()[0]
+        #last_Ag_balance = args.Ag_balance_history.pop()[0]
+    
+        #从各自的既定位置取出
+        best_x = best_x.reshape(-1, args.NUM_OF_TYPES_FOR_GA)
+        ga_T = best_x[:, :len(args.obs_T)]
+        ga_Cu = best_x[:, len(args.obs_T):len(args.obs_T)+len(args.obs_Cu)]
+        ga_Au = best_x[:, len(args.obs_T)+len(args.obs_Cu):len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au)]
+        ga_Ag = best_x[:, len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au):]
+        #放回要给web的列表, 这是盘点值，理应都是正的或0
+        args.data_all['currentBalanceDry'] = np.round(ga_T.flatten())
+        args.data_all['currentBalancePercentageCu'] = np.round(ga_Cu.flatten())
+        args.data_all['currentBalanceUnitageAu'] = np.round(ga_Au.flatten())
+        args.data_all['currentBalanceUnitageAg'] = np.round(ga_Ag.flatten())
+        #计算消耗、全场回收率
+        args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
+    
+        #为了后期方便，加上数据设置页面的值
+        for col in args.settings.columns:
+            if col not in args.data_all.columns:
+                args.data_all[col] = args.settings[col]
+        #返回部分
+        res_data = miscs.pd_to_res(args.data_all)
+        res_data = {
+               'list':res_data,
+               'parameter':{'recoveryAg':recovery_Ag, \
+                            'recoveryAu':recovery_Au, \
+                            'recoveryCu':recovery_Cu, \
+                            'recallAg':recall_Ag, \
+                            'recallAu':recall_Au, \
+                            'recallCu':recall_Cu, \
+                            'Ag_balance':Ag_balance, \
+                            'Au_balance':Au_balance, \
+                            'Cu_balance':Cu_balance},
+               'set': [0]
+                }
+        return jsonify(res_data)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
 
 
@@ -345,7 +444,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     epsilon = 1e-13
-    args.AUTO_WEIGHTS = {}
     args.T_prob_history = []
     args.Cu_prob_history = []
     args.Au_prob_history = []

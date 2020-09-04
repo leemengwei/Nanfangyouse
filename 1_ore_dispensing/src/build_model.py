@@ -321,330 +321,346 @@ def oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRa
 @app.route('/api/getFormula', methods=['GET'])
 @cross_origin()
 def getFormula():   #temporary   API 0-2
-    #随便搜索两个:
-    solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
-    solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
-
-    #从csv同时读入旧配方的预设参数，新配方的不用管，衔接的配方的参数以旧配方为准
-    Matte_Cu_Percentage_1  = solution_1.iloc[:,0].Matte_Cu_Percentage 
-    Matte_Fe_Percentage_1  = solution_1.iloc[:,0].Matte_Fe_Percentage
-    Matte_S_Percentage_1   = solution_1.iloc[:,0].Matte_S_Percentage  
-    Slag_Cu_Percentage_1   = solution_1.iloc[:,0].Slag_Cu_Percentage  
-    Slag_S_Percentage_1    = solution_1.iloc[:,0].Slag_S_Percentage   
-    Slag_Fe_Percentage_1   = solution_1.iloc[:,0].Slag_Fe_Percentage  
-    Slag_SiO2_Percentage_1 = solution_1.iloc[:,0].Slag_SiO2_Percentage
-    OXYGEN_PEER_COAL_1     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
-    COAL_T_1               = solution_1.iloc[:,0].COAL_T
-    Fe_vs_SiO2_1           = solution_1.iloc[:,0].Fe_vs_SiO2
-    Fe2O3_vs_FeO_1         = solution_1.iloc[:,0].Fe2O3_vs_FeO
-    Flow_1                 = solution_1.iloc[:,0].Flow
-    OXYGEN_CONCENTRATION_1 = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
-    MAX_TYPE_TO_SEARCH_1   = solution_1.iloc[:,0].MAX_TYPE_TO_SEARCH
-    RecallRate_1           = solution_1.iloc[:,0].RecallRate
-
-    #配方二的
-    Matte_Cu_Percentage_2  = solution_2.iloc[:,0].Matte_Cu_Percentage 
-    Matte_Fe_Percentage_2  = solution_2.iloc[:,0].Matte_Fe_Percentage
-    Matte_S_Percentage_2   = solution_2.iloc[:,0].Matte_S_Percentage  
-    Slag_Cu_Percentage_2   = solution_2.iloc[:,0].Slag_Cu_Percentage  
-    Slag_S_Percentage_2    = solution_2.iloc[:,0].Slag_S_Percentage   
-    Slag_Fe_Percentage_2   = solution_2.iloc[:,0].Slag_Fe_Percentage  
-    Slag_SiO2_Percentage_2 = solution_2.iloc[:,0].Slag_SiO2_Percentage
-    OXYGEN_PEER_COAL_2     = solution_2.iloc[:,0].OXYGEN_PEER_COAL
-    COAL_T_2               = solution_2.iloc[:,0].COAL_T
-    Fe_vs_SiO2_2           = solution_2.iloc[:,0].Fe_vs_SiO2
-    Fe2O3_vs_FeO_2         = solution_2.iloc[:,0].Fe2O3_vs_FeO
-    Flow_2                 = solution_2.iloc[:,0].Flow
-    OXYGEN_CONCENTRATION_2 = solution_2.iloc[:,0].OXYGEN_CONCENTRATION
-    MAX_TYPE_TO_SEARCH_2   = solution_2.iloc[:,0].MAX_TYPE_TO_SEARCH
-    RecallRate_2           = solution_2.iloc[:,0].RecallRate
-
-    #衔接配方的，默认用配方1的
-    Matte_Cu_Percentage_3  = solution_1.iloc[:,0].Matte_Cu_Percentage 
-    Matte_Fe_Percentage_3  = solution_1.iloc[:,0].Matte_Fe_Percentage
-    Matte_S_Percentage_3   = solution_1.iloc[:,0].Matte_S_Percentage  
-    Slag_Cu_Percentage_3   = solution_1.iloc[:,0].Slag_Cu_Percentage  
-    Slag_S_Percentage_3    = solution_1.iloc[:,0].Slag_S_Percentage   
-    Slag_Fe_Percentage_3   = solution_1.iloc[:,0].Slag_Fe_Percentage  
-    Slag_SiO2_Percentage_3 = solution_1.iloc[:,0].Slag_SiO2_Percentage
-    OXYGEN_PEER_COAL_3     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
-    COAL_T_3               = solution_1.iloc[:,0].COAL_T
-    Fe_vs_SiO2_3           = solution_1.iloc[:,0].Fe_vs_SiO2
-    Fe2O3_vs_FeO_3         = solution_1.iloc[:,0].Fe2O3_vs_FeO
-    Flow_3                 = solution_1.iloc[:,0].Flow
-    OXYGEN_CONCENTRATION_3 = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
-    MAX_TYPE_TO_SEARCH_3   = solution_1.iloc[:,0].MAX_TYPE_TO_SEARCH
-    RecallRate_3           = solution_1.iloc[:,0].RecallRate
-    #氧料比也读出来，而且是两个配方的都读出来
-    oxygenMaterialRatio_1     = solution_1.iloc[:,0].OxygenMaterialRatio
-    oxygenMaterialRatio_2     = solution_2.iloc[:,0].OxygenMaterialRatio
-
-    #随后丢掉这些列，web才能正常显示
-    solution_1 = solution_1.dropna(axis=0)
-    solution_2 = solution_2.dropna(axis=0)
-    solution_1 = np.round(solution_1, 5)  #Web display bug
-    solution_2 = np.round(solution_2, 5)  #Web display bug
-    print("Solution read in")
-
-    solution_1['formula'] = '1'
-    solution_2['formula'] = '2'
-
-    res_data1 = pd_to_res(solution_1)
-    res_data2 = pd_to_res(solution_2)
-    res_data = {
-        "list": 
-            [res_data1, res_data2],
-        'materialList':
-            [
-              {'formula':solution_1['formula'][0],
-              'elementsList':compute_element_overview(solution_1)},
-              {'formula':solution_2['formula'][0],
-              'elementsList':compute_element_overview(solution_2)}
-            ],
-        "oxygenMaterialRatio":
-            {
-              "formula1": round(oxygenMaterialRatio_1, 2),
-              "formula2": round(oxygenMaterialRatio_2, 2),
-              "formula*": '计算后下方显示',
-            },
-         "presetParameter_1":
-            {
-             'matteTargetGradePercentage': round(Matte_Cu_Percentage_1, 2),
-             'matteFePercentage': round(Matte_Fe_Percentage_1, 2),
-             'matteSPercentage': round(Matte_S_Percentage_1, 2),
-             'slagCuPercentage': round(Slag_Cu_Percentage_1, 2),
-             'slagFePercentage': round(Slag_Fe_Percentage_1, 2),
-             'slagSPercentage': round(Slag_S_Percentage_1, 2),
-             'slagSiO2Percentage': round(Slag_SiO2_Percentage_1, 2),
-             'maxType': round(MAX_TYPE_TO_SEARCH_1, 2),
-             'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_1, 2),
-             'oxygenConcentration': round(OXYGEN_CONCENTRATION_1, 2),
-             'peaCoal': round(COAL_T_1, 2),
-             'FeSiO2Ratio': round(Fe_vs_SiO2_1, 2),
-             'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_1, 2),
-             'consumedAmount': round(Flow_1, 2),
-             'recallRate': round(RecallRate_1, 2),
-            },
-        "presetParameter_2":
-            {
-             'matteTargetGradePercentage': round(Matte_Cu_Percentage_2, 2),
-             'matteFePercentage': round(Matte_Fe_Percentage_2, 2),
-             'matteSPercentage': round(Matte_S_Percentage_2, 2),
-             'slagCuPercentage': round(Slag_Cu_Percentage_2, 2),
-             'slagFePercentage': round(Slag_Fe_Percentage_2, 2),
-             'slagSPercentage': round(Slag_S_Percentage_2, 2),
-             'slagSiO2Percentage': round(Slag_SiO2_Percentage_2, 2),
-             'maxType': round(MAX_TYPE_TO_SEARCH_2, 2),
-             'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_2, 2),
-             'oxygenConcentration': round(OXYGEN_CONCENTRATION_2, 2),
-             'peaCoal': round(COAL_T_2, 2),
-             'FeSiO2Ratio': round(Fe_vs_SiO2_2, 2),
-             'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_2, 2),
-             'consumedAmount': round(Flow_2, 2),
-             'recallRate': round(RecallRate_2, 2),
-            },
-        "presetParameter_3":
-            {
-             'matteTargetGradePercentage': round(Matte_Cu_Percentage_3, 2),
-             'matteFePercentage': round(Matte_Fe_Percentage_3, 2),
-             'matteSPercentage': round(Matte_S_Percentage_3, 2),
-             'slagCuPercentage': round(Slag_Cu_Percentage_3, 2),
-             'slagFePercentage': round(Slag_Fe_Percentage_3, 2),
-             'slagSPercentage': round(Slag_S_Percentage_3, 2),
-             'slagSiO2Percentage': round(Slag_SiO2_Percentage_3, 2),
-             'maxType': round(MAX_TYPE_TO_SEARCH_3, 2),
-             'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_3, 2),
-             'oxygenConcentration': round(OXYGEN_CONCENTRATION_3, 2),
-             'peaCoal': round(COAL_T_3, 2),
-             'FeSiO2Ratio': round(Fe_vs_SiO2_3, 2),
-             'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_3, 2),
-             'consumedAmount': round(Flow_3, 2),
-             'recallRate': round(RecallRate_3, 2),
-            },
-         }
-    return jsonify(res_data)
+    try:
+        #随便搜索两个:
+        solution_1 = pd.read_csv("../data/solution_1.csv", index_col=0)
+        solution_2 = pd.read_csv("../data/solution_2.csv", index_col=0)
+    
+        #从csv同时读入旧配方的预设参数，新配方的不用管，衔接的配方的参数以旧配方为准
+        Matte_Cu_Percentage_1  = solution_1.iloc[:,0].Matte_Cu_Percentage 
+        Matte_Fe_Percentage_1  = solution_1.iloc[:,0].Matte_Fe_Percentage
+        Matte_S_Percentage_1   = solution_1.iloc[:,0].Matte_S_Percentage  
+        Slag_Cu_Percentage_1   = solution_1.iloc[:,0].Slag_Cu_Percentage  
+        Slag_S_Percentage_1    = solution_1.iloc[:,0].Slag_S_Percentage   
+        Slag_Fe_Percentage_1   = solution_1.iloc[:,0].Slag_Fe_Percentage  
+        Slag_SiO2_Percentage_1 = solution_1.iloc[:,0].Slag_SiO2_Percentage
+        OXYGEN_PEER_COAL_1     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
+        COAL_T_1               = solution_1.iloc[:,0].COAL_T
+        Fe_vs_SiO2_1           = solution_1.iloc[:,0].Fe_vs_SiO2
+        Fe2O3_vs_FeO_1         = solution_1.iloc[:,0].Fe2O3_vs_FeO
+        Flow_1                 = solution_1.iloc[:,0].Flow
+        OXYGEN_CONCENTRATION_1 = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
+        MAX_TYPE_TO_SEARCH_1   = solution_1.iloc[:,0].MAX_TYPE_TO_SEARCH
+        RecallRate_1           = solution_1.iloc[:,0].RecallRate
+    
+        #配方二的
+        Matte_Cu_Percentage_2  = solution_2.iloc[:,0].Matte_Cu_Percentage 
+        Matte_Fe_Percentage_2  = solution_2.iloc[:,0].Matte_Fe_Percentage
+        Matte_S_Percentage_2   = solution_2.iloc[:,0].Matte_S_Percentage  
+        Slag_Cu_Percentage_2   = solution_2.iloc[:,0].Slag_Cu_Percentage  
+        Slag_S_Percentage_2    = solution_2.iloc[:,0].Slag_S_Percentage   
+        Slag_Fe_Percentage_2   = solution_2.iloc[:,0].Slag_Fe_Percentage  
+        Slag_SiO2_Percentage_2 = solution_2.iloc[:,0].Slag_SiO2_Percentage
+        OXYGEN_PEER_COAL_2     = solution_2.iloc[:,0].OXYGEN_PEER_COAL
+        COAL_T_2               = solution_2.iloc[:,0].COAL_T
+        Fe_vs_SiO2_2           = solution_2.iloc[:,0].Fe_vs_SiO2
+        Fe2O3_vs_FeO_2         = solution_2.iloc[:,0].Fe2O3_vs_FeO
+        Flow_2                 = solution_2.iloc[:,0].Flow
+        OXYGEN_CONCENTRATION_2 = solution_2.iloc[:,0].OXYGEN_CONCENTRATION
+        MAX_TYPE_TO_SEARCH_2   = solution_2.iloc[:,0].MAX_TYPE_TO_SEARCH
+        RecallRate_2           = solution_2.iloc[:,0].RecallRate
+    
+        #衔接配方的，默认用配方1的
+        Matte_Cu_Percentage_3  = solution_1.iloc[:,0].Matte_Cu_Percentage 
+        Matte_Fe_Percentage_3  = solution_1.iloc[:,0].Matte_Fe_Percentage
+        Matte_S_Percentage_3   = solution_1.iloc[:,0].Matte_S_Percentage  
+        Slag_Cu_Percentage_3   = solution_1.iloc[:,0].Slag_Cu_Percentage  
+        Slag_S_Percentage_3    = solution_1.iloc[:,0].Slag_S_Percentage   
+        Slag_Fe_Percentage_3   = solution_1.iloc[:,0].Slag_Fe_Percentage  
+        Slag_SiO2_Percentage_3 = solution_1.iloc[:,0].Slag_SiO2_Percentage
+        OXYGEN_PEER_COAL_3     = solution_1.iloc[:,0].OXYGEN_PEER_COAL
+        COAL_T_3               = solution_1.iloc[:,0].COAL_T
+        Fe_vs_SiO2_3           = solution_1.iloc[:,0].Fe_vs_SiO2
+        Fe2O3_vs_FeO_3         = solution_1.iloc[:,0].Fe2O3_vs_FeO
+        Flow_3                 = solution_1.iloc[:,0].Flow
+        OXYGEN_CONCENTRATION_3 = solution_1.iloc[:,0].OXYGEN_CONCENTRATION
+        MAX_TYPE_TO_SEARCH_3   = solution_1.iloc[:,0].MAX_TYPE_TO_SEARCH
+        RecallRate_3           = solution_1.iloc[:,0].RecallRate
+        #氧料比也读出来，而且是两个配方的都读出来
+        oxygenMaterialRatio_1     = solution_1.iloc[:,0].OxygenMaterialRatio
+        oxygenMaterialRatio_2     = solution_2.iloc[:,0].OxygenMaterialRatio
+    
+        #随后丢掉这些列，web才能正常显示
+        solution_1 = solution_1.dropna(axis=0)
+        solution_2 = solution_2.dropna(axis=0)
+        solution_1 = np.round(solution_1, 5)  #Web display bug
+        solution_2 = np.round(solution_2, 5)  #Web display bug
+        print("Solution read in")
+    
+        solution_1['formula'] = '1'
+        solution_2['formula'] = '2'
+    
+        res_data1 = pd_to_res(solution_1)
+        res_data2 = pd_to_res(solution_2)
+        res_data = {
+            "list": 
+                [res_data1, res_data2],
+            'materialList':
+                [
+                  {'formula':solution_1['formula'][0],
+                  'elementsList':compute_element_overview(solution_1)},
+                  {'formula':solution_2['formula'][0],
+                  'elementsList':compute_element_overview(solution_2)}
+                ],
+            "oxygenMaterialRatio":
+                {
+                  "formula1": round(oxygenMaterialRatio_1, 2),
+                  "formula2": round(oxygenMaterialRatio_2, 2),
+                  "formula*": '计算后下方显示',
+                },
+             "presetParameter_1":
+                {
+                 'matteTargetGradePercentage': round(Matte_Cu_Percentage_1, 2),
+                 'matteFePercentage': round(Matte_Fe_Percentage_1, 2),
+                 'matteSPercentage': round(Matte_S_Percentage_1, 2),
+                 'slagCuPercentage': round(Slag_Cu_Percentage_1, 2),
+                 'slagFePercentage': round(Slag_Fe_Percentage_1, 2),
+                 'slagSPercentage': round(Slag_S_Percentage_1, 2),
+                 'slagSiO2Percentage': round(Slag_SiO2_Percentage_1, 2),
+                 'maxType': round(MAX_TYPE_TO_SEARCH_1, 2),
+                 'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_1, 2),
+                 'oxygenConcentration': round(OXYGEN_CONCENTRATION_1, 2),
+                 'peaCoal': round(COAL_T_1, 2),
+                 'FeSiO2Ratio': round(Fe_vs_SiO2_1, 2),
+                 'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_1, 2),
+                 'consumedAmount': round(Flow_1, 2),
+                 'recallRate': round(RecallRate_1, 2),
+                },
+            "presetParameter_2":
+                {
+                 'matteTargetGradePercentage': round(Matte_Cu_Percentage_2, 2),
+                 'matteFePercentage': round(Matte_Fe_Percentage_2, 2),
+                 'matteSPercentage': round(Matte_S_Percentage_2, 2),
+                 'slagCuPercentage': round(Slag_Cu_Percentage_2, 2),
+                 'slagFePercentage': round(Slag_Fe_Percentage_2, 2),
+                 'slagSPercentage': round(Slag_S_Percentage_2, 2),
+                 'slagSiO2Percentage': round(Slag_SiO2_Percentage_2, 2),
+                 'maxType': round(MAX_TYPE_TO_SEARCH_2, 2),
+                 'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_2, 2),
+                 'oxygenConcentration': round(OXYGEN_CONCENTRATION_2, 2),
+                 'peaCoal': round(COAL_T_2, 2),
+                 'FeSiO2Ratio': round(Fe_vs_SiO2_2, 2),
+                 'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_2, 2),
+                 'consumedAmount': round(Flow_2, 2),
+                 'recallRate': round(RecallRate_2, 2),
+                },
+            "presetParameter_3":
+                {
+                 'matteTargetGradePercentage': round(Matte_Cu_Percentage_3, 2),
+                 'matteFePercentage': round(Matte_Fe_Percentage_3, 2),
+                 'matteSPercentage': round(Matte_S_Percentage_3, 2),
+                 'slagCuPercentage': round(Slag_Cu_Percentage_3, 2),
+                 'slagFePercentage': round(Slag_Fe_Percentage_3, 2),
+                 'slagSPercentage': round(Slag_S_Percentage_3, 2),
+                 'slagSiO2Percentage': round(Slag_SiO2_Percentage_3, 2),
+                 'maxType': round(MAX_TYPE_TO_SEARCH_3, 2),
+                 'oxygenPeaCoalRatio': round(OXYGEN_PEER_COAL_3, 2),
+                 'oxygenConcentration': round(OXYGEN_CONCENTRATION_3, 2),
+                 'peaCoal': round(COAL_T_3, 2),
+                 'FeSiO2Ratio': round(Fe_vs_SiO2_3, 2),
+                 'Fe2O3_vs_FeO': round(Fe2O3_vs_FeO_3, 2),
+                 'consumedAmount': round(Flow_3, 2),
+                 'recallRate': round(RecallRate_3, 2),
+                },
+             }
+        return jsonify(res_data)
+    except:
+        print('Error', e)
+        return jsonify({'error': str(e)})
 
 
 @app.route('/api/quick_recommend', methods=['POST', 'GET'])
 @cross_origin()
-def quick_recommend():   #API 3  
-    req_data = request.get_json()
-    req_data['presetParameter'] = req_data['presetParameter_3']
-    #Web-set solution:
-    solution_1 = []
-    solution_2 = []
-    for i in req_data['list'][0]:
-        solution_1.append(i)
-    for i in req_data['list'][1]:
-        solution_2.append(i)
-    solution_1 = req_to_pd(solution_1)
-    solution_2 = req_to_pd(solution_2)
-    #NOTE:传订单1（被衔接）当时的手动修改的库存状态。
-    solution_1['inventoryBalance'] = copy.deepcopy(solution_1['inventory'])
-    solution_2['inventoryBalance'] = copy.deepcopy(solution_2['inventory']) 
-
-    #Web-set parameters: (注意指的是新订单的各个量)
-    global args  #这里要给args加冰铜参数等。
-    args = get_presets(args, req_data)
-
-    def get_compose_solution_from_to(solution_2, solution_1):   #Pick from 2, add into 1
-        concat_solution = pd.DataFrame([])
-        concat_oxygen = np.array([])
-        oxygenMaterialRatio_1 = float(req_data['oxygenMaterialRatio']['formula1'])
-        oxygenMaterialRatio_2 = float(req_data['oxygenMaterialRatio']['formula2'])
-
-        #穷举计算所有compose solution
-        oxygenMaterialRatios = []
-        compose_solutions = []
-        compose_consumed_amounts_sorter = []    #这个sorter仅统计未消耗光的其他项的进一步数量，越大越好
-        #特殊处理用户指定的fixed part，先取出来
-        solution_1_fixed_part = solution_1[solution_1['fixed'] == 1]  #诸如渣精矿可以勾选fixed
-        ratio_taken = sum(solution_1['calculatePercentage'][solution_1_fixed_part.index].values)
-        dropped_solution_1 = solution_1.drop(solution_1_fixed_part.index)
-        solution_1_short_types = dropped_solution_1[dropped_solution_1['cohesion'] == 1].index  #让用户选择需要衔接哪一个
-        solution_2_short_types = solution_2[solution_2['inventoryBalance'] <= 300].index
-        solution_1_types_avaliable = list(set(dropped_solution_1.index) - set(solution_1_short_types))
-        solution_2_types_avaliable = list(set(solution_2.index) - set(solution_2_short_types) - set(dropped_solution_1.index))  #NOTE: 1、2相同的项不在这个变量中考虑，下面会补充搜索‘不添加任何项’来考虑。
-        if (dropped_solution_1.loc[solution_1_types_avaliable, 'inventory'] == 0).any():
-            status = 'Error! 目前总消耗为0, 请检查并衔接配方1中的0库存量物料，将之标记为衔接或排除，结果无意义'
-            return dropped_solution_1, oxygenMaterialRatio_1, status
-        combinations_more_to_less = list(itertools.combinations(list(solution_2.loc[solution_2_types_avaliable].sort_values('inventoryBalance').index[::-1]), len(solution_1_short_types)))
-        combinations_more_to_less.insert(0, '')   #添加一个空项目进来，即‘不混入任何配方2’。
-        #把新的2混到旧的1中
-        for i in combinations_more_to_less:
-            tmp_solution_1 = dropped_solution_1.drop(solution_1_short_types)   #耗尽项空出来
-            index_after_drop = list(set(tmp_solution_1.index) - set(args.NOT_COMPUTE))
-            tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]]) 
-            print("Searching... ",i, tmp_solution_1.index)
-            #随机搜索配比组合：
-            for _ in tqdm.tqdm(range(600)):
-                tmp_solution_1['calculatePercentage'] = np.random.dirichlet(range(1, len(tmp_solution_1)+1))*(1-ratio_taken)
-                #再接fixed part回去
-                tmp_full_solution_1 = pd.concat((tmp_solution_1, solution_1_fixed_part))
-                #计算每一种组合的情况
-                tmp_full_solution_1, tmp_element_output = mixing(args, tmp_full_solution_1)   #mix之后就有新的消耗列了，然后在计算混入项的理论剩余（下面)
-                tmp_oxygenMaterialRatio, tmp_Matte_T, tmp_Slag_T, tmp_Wind_Flux, tmp_SiO2_T = calc_oxygen(args, tmp_element_output)
-                #对于那些氧料比需要满足要求的，就先记下来（最终物料存量肯定会满足要求的，因为mix时用的是两个配方的剩余量）：
-                if oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRatio): # and (tmp_full_solution_1['calculatePercentage']>=0.05).all():
-                    compose_solutions.append(copy.deepcopy(tmp_full_solution_1))
-                    oxygenMaterialRatios.append(tmp_oxygenMaterialRatio)
-                    compose_consumed_amounts_sorter.append(tmp_full_solution_1['consumed_amounts'][index_after_drop].sum())
-        #查找结束后看是否存在可行解。随后参考旧单子，查看其所有旧物料消耗最大的情况作为解：
-        if len(compose_solutions)>=1:
-            concat_solution = compose_solutions[np.array(compose_consumed_amounts_sorter).argmax()]
-            concat_oxygen = oxygenMaterialRatios[np.array(compose_consumed_amounts_sorter).argmax()]
-            if len(concat_solution)!=len(solution_1):
-                add_ons = '（不填加任何配方2项目，仅调整非衔接项的比例即可满足继续生产需求）'
+def quick_recommend():   #API 3 
+    try:
+        req_data = request.get_json()
+        req_data['presetParameter'] = req_data['presetParameter_3']
+        #Web-set solution:
+        solution_1 = []
+        solution_2 = []
+        for i in req_data['list'][0]:
+            solution_1.append(i)
+        for i in req_data['list'][1]:
+            solution_2.append(i)
+        solution_1 = req_to_pd(solution_1)
+        solution_2 = req_to_pd(solution_2)
+        #NOTE:传订单1（被衔接）当时的手动修改的库存状态。
+        solution_1['inventoryBalance'] = copy.deepcopy(solution_1['inventory'])
+        solution_2['inventoryBalance'] = copy.deepcopy(solution_2['inventory']) 
+    
+        #Web-set parameters: (注意指的是新订单的各个量)
+        global args  #这里要给args加冰铜参数等。
+        args = get_presets(args, req_data)
+    
+        def get_compose_solution_from_to(solution_2, solution_1):   #Pick from 2, add into 1
+            concat_solution = pd.DataFrame([])
+            concat_oxygen = np.array([])
+            oxygenMaterialRatio_1 = float(req_data['oxygenMaterialRatio']['formula1'])
+            oxygenMaterialRatio_2 = float(req_data['oxygenMaterialRatio']['formula2'])
+    
+            #穷举计算所有compose solution
+            oxygenMaterialRatios = []
+            compose_solutions = []
+            compose_consumed_amounts_sorter = []    #这个sorter仅统计未消耗光的其他项的进一步数量，越大越好
+            #特殊处理用户指定的fixed part，先取出来
+            solution_1_fixed_part = solution_1[solution_1['fixed'] == 1]  #诸如渣精矿可以勾选fixed
+            ratio_taken = sum(solution_1['calculatePercentage'][solution_1_fixed_part.index].values)
+            dropped_solution_1 = solution_1.drop(solution_1_fixed_part.index)
+            solution_1_short_types = dropped_solution_1[dropped_solution_1['cohesion'] == 1].index  #让用户选择需要衔接哪一个
+            solution_2_short_types = solution_2[solution_2['inventoryBalance'] <= 300].index
+            solution_1_types_avaliable = list(set(dropped_solution_1.index) - set(solution_1_short_types))
+            solution_2_types_avaliable = list(set(solution_2.index) - set(solution_2_short_types) - set(dropped_solution_1.index))  #NOTE: 1、2相同的项不在这个变量中考虑，下面会补充搜索‘不添加任何项’来考虑。
+            if (dropped_solution_1.loc[solution_1_types_avaliable, 'inventory'] == 0).any():
+                status = 'Error! 目前总消耗为0, 请检查并衔接配方1中的0库存量物料，将之标记为衔接或排除，结果无意义'
+                return dropped_solution_1, oxygenMaterialRatio_1, status
+            combinations_more_to_less = list(itertools.combinations(list(solution_2.loc[solution_2_types_avaliable].sort_values('inventoryBalance').index[::-1]), len(solution_1_short_types)))
+            combinations_more_to_less.insert(0, '')   #添加一个空项目进来，即‘不混入任何配方2’。
+            #把新的2混到旧的1中
+            for i in combinations_more_to_less:
+                tmp_solution_1 = dropped_solution_1.drop(solution_1_short_types)   #耗尽项空出来
+                index_after_drop = list(set(tmp_solution_1.index) - set(args.NOT_COMPUTE))
+                tmp_solution_1 = pd.concat([tmp_solution_1, solution_2.loc[list(i)]]) 
+                print("Searching... ",i, tmp_solution_1.index)
+                #随机搜索配比组合：
+                for _ in tqdm.tqdm(range(600)):
+                    tmp_solution_1['calculatePercentage'] = np.random.dirichlet(range(1, len(tmp_solution_1)+1))*(1-ratio_taken)
+                    #再接fixed part回去
+                    tmp_full_solution_1 = pd.concat((tmp_solution_1, solution_1_fixed_part))
+                    #计算每一种组合的情况
+                    tmp_full_solution_1, tmp_element_output = mixing(args, tmp_full_solution_1)   #mix之后就有新的消耗列了，然后在计算混入项的理论剩余（下面)
+                    tmp_oxygenMaterialRatio, tmp_Matte_T, tmp_Slag_T, tmp_Wind_Flux, tmp_SiO2_T = calc_oxygen(args, tmp_element_output)
+                    #对于那些氧料比需要满足要求的，就先记下来（最终物料存量肯定会满足要求的，因为mix时用的是两个配方的剩余量）：
+                    if oxygen_ok(oxygenMaterialRatio_1, oxygenMaterialRatio_2, tmp_oxygenMaterialRatio): # and (tmp_full_solution_1['calculatePercentage']>=0.05).all():
+                        compose_solutions.append(copy.deepcopy(tmp_full_solution_1))
+                        oxygenMaterialRatios.append(tmp_oxygenMaterialRatio)
+                        compose_consumed_amounts_sorter.append(tmp_full_solution_1['consumed_amounts'][index_after_drop].sum())
+            #查找结束后看是否存在可行解。随后参考旧单子，查看其所有旧物料消耗最大的情况作为解：
+            if len(compose_solutions)>=1:
+                concat_solution = compose_solutions[np.array(compose_consumed_amounts_sorter).argmax()]
+                concat_oxygen = oxygenMaterialRatios[np.array(compose_consumed_amounts_sorter).argmax()]
+                if len(concat_solution)!=len(solution_1):
+                    add_ons = '（不填加任何配方2项目，仅调整非衔接项的比例即可满足继续生产需求）'
+                else:
+                    add_ons = ''
+                status = "Okay, 搜索完毕，在所有可行解组合中找到的物料剩余较小情况解已给出，如有需求，可考虑手动微调比例" + add_ons
             else:
-                add_ons = ''
-            status = "Okay, 搜索完毕，在所有可行解组合中找到的物料剩余较小情况解已给出，如有需求，可考虑手动微调比例" + add_ons
-        else:
-            status = "Error, 衔接搜索结束，暂无法满足氧料比要求，将返回原配方1，可尝试再试一次或人工衔接."
-            if not (len(solution_1_short_types)<=len(solution_2_types_avaliable)):
-                status += "另外需要注意：配方1、2除去共同物料后(相同项不应存在衔接需求，会在生产中自然衔接)，2号配料单中其他较安全的可选衔接物料已经不够（生产理论剩余后<300t的不被内部算法视作可衔接项，以防影响下次配方生产）"
-            print(status)
-            print(solution_1, oxygenMaterialRatio_1)
-            print(solution_2, oxygenMaterialRatio_2)
-            return solution_1, oxygenMaterialRatio_1, status
-        return concat_solution, concat_oxygen, status
-    #衔接，单项混入（单新入旧），穷举所有情况及其得分
-    #NOTE: 搜索效果应该达到如下目的：1、剩下的N项按照其各自剩余量确定其比例（原则上为了尽可能同时用完）；2、加或不加新项（原则上为了不影响新的订单）；3、每次衔接不考虑“衔接之后再衔接”，即当前满足了氧料比落在之间开始生产，至于二次此次衔接是否会使得下次“氧料比区间”求解困难，不再过多考虑（实际上呼应了1,我们简化认为一次衔接后剩余的都是不需要处理的小量）；
-    concat_solution, concat_oxygenMaterialRatio, status = get_compose_solution_from_to(solution_2, solution_1)
-    concat_solution = web_ratio_int(concat_solution)
-    concat_solution, concat_element_output = mixing(args, concat_solution)
-    concat_solution = web_consumption_int(concat_solution)
-    concat_oxygenMaterialRatio, concat_Matte_T, concat_Slag_T, concat_Wind_Flux, concat_SiO2_T = calc_oxygen(args, concat_element_output)  
-    #pandas to req_data
-    res_element = pd_to_res(concat_element_output)[0]
-    concat_solution['manual'] = False  #just fill mannual, 不然来回切换的时候有显示bug
-    res_data = pd_to_res(concat_solution)
-    new_res_element = [] 
-    for key in res_element.keys(): 
-        if key=='name':continue 
-        new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
-    S_vs_Cu = res_element['S']/res_element['Cu']
-
-    res_data = {
-        "list": 
-            res_data,
-        "calculateParameter":
-        {
-            "oxygenMaterialRatio": round(concat_oxygenMaterialRatio, 2),
-            "totalConsumedAmount": round(sum(concat_solution['consumed_amounts']), 2),
-            "totalLeftOver": round(sum(concat_solution['inventoryBalance']), 2),
-            "best_y": round(0.000, 2),
-            "paFlow": round(concat_Wind_Flux, 2),
-            "SCuRatio": round(S_vs_Cu, 2),
-            "totalMatte": round(concat_Matte_T, 2),
-            "totalSlag": round(concat_Slag_T, 2),
-            "totalQuartz": round(concat_SiO2_T, 2),
-        },
-        "elementsMixtureList": 
-            new_res_element,
-        "recommended": str(status)
-    }
-    return jsonify(res_data)
+                status = "Error, 衔接搜索结束，暂无法满足氧料比要求，将返回原配方1，可尝试再试一次或人工衔接."
+                if not (len(solution_1_short_types)<=len(solution_2_types_avaliable)):
+                    status += "另外需要注意：配方1、2除去共同物料后(相同项不应存在衔接需求，会在生产中自然衔接)，2号配料单中其他较安全的可选衔接物料已经不够（生产理论剩余后<300t的不被内部算法视作可衔接项，以防影响下次配方生产）"
+                print(status)
+                print(solution_1, oxygenMaterialRatio_1)
+                print(solution_2, oxygenMaterialRatio_2)
+                return solution_1, oxygenMaterialRatio_1, status
+            return concat_solution, concat_oxygen, status
+        #衔接，单项混入（单新入旧），穷举所有情况及其得分
+        #NOTE: 搜索效果应该达到如下目的：1、剩下的N项按照其各自剩余量确定其比例（原则上为了尽可能同时用完）；2、加或不加新项（原则上为了不影响新的订单）；3、每次衔接不考虑“衔接之后再衔接”，即当前满足了氧料比落在之间开始生产，至于二次此次衔接是否会使得下次“氧料比区间”求解困难，不再过多考虑（实际上呼应了1,我们简化认为一次衔接后剩余的都是不需要处理的小量）；
+        concat_solution, concat_oxygenMaterialRatio, status = get_compose_solution_from_to(solution_2, solution_1)
+        concat_solution = web_ratio_int(concat_solution)
+        concat_solution, concat_element_output = mixing(args, concat_solution)
+        concat_solution = web_consumption_int(concat_solution)
+        concat_oxygenMaterialRatio, concat_Matte_T, concat_Slag_T, concat_Wind_Flux, concat_SiO2_T = calc_oxygen(args, concat_element_output)  
+        #pandas to req_data
+        res_element = pd_to_res(concat_element_output)[0]
+        concat_solution['manual'] = False  #just fill mannual, 不然来回切换的时候有显示bug
+        res_data = pd_to_res(concat_solution)
+        new_res_element = [] 
+        for key in res_element.keys(): 
+            if key=='name':continue 
+            new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
+        S_vs_Cu = res_element['S']/res_element['Cu']
+    
+        res_data = {
+            "list": 
+                res_data,
+            "calculateParameter":
+            {
+                "oxygenMaterialRatio": round(concat_oxygenMaterialRatio, 2),
+                "totalConsumedAmount": round(sum(concat_solution['consumed_amounts']), 2),
+                "totalLeftOver": round(sum(concat_solution['inventoryBalance']), 2),
+                "best_y": round(0.000, 2),
+                "paFlow": round(concat_Wind_Flux, 2),
+                "SCuRatio": round(S_vs_Cu, 2),
+                "totalMatte": round(concat_Matte_T, 2),
+                "totalSlag": round(concat_Slag_T, 2),
+                "totalQuartz": round(concat_SiO2_T, 2),
+            },
+            "elementsMixtureList": 
+                new_res_element,
+            "recommended": str(status)
+        }
+        return jsonify(res_data)
+    except:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
 @app.route('/api/quick_update2', methods=['POST', 'GET'])
 @cross_origin()
 def quick_update2():   #API 4
-    res_data = quick_update(by_update_2=True).json
-    res_data['recommended'] = '(手动调整返回)'
-    
-    return jsonify(res_data)
+    try:
+        res_data = quick_update(by_update_2=True).json
+        res_data['recommended'] = '(手动调整返回)'
+        return jsonify(res_data)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
 @app.route('/api/quick_update', methods=['POST', 'GET'])
 @cross_origin()
 def quick_update(by_update_2=False):   #API 2 
-    req_data = request.get_json()
-    #每次快速更新都重新获取界面设置的生产参数
-    if by_update_2:
-        req_data['presetParameter'] = req_data['presetParameter_3']
-    global args
-    args = get_presets(args, req_data)
-
-    web_solution = req_to_pd(req_data['list'])
-    old_ratio = copy.deepcopy(web_solution['calculatePercentage'])
+    try:
+        req_data = request.get_json()
+        #每次快速更新都重新获取界面设置的生产参数
+        if by_update_2:
+            req_data['presetParameter'] = req_data['presetParameter_3']
+        global args
+        args = get_presets(args, req_data)
     
-    #如果网页回传了adjustRatio，则接下来mix所用的ratio响应调整。
-    for i in web_solution.iterrows():
-        web_solution.loc[i[0], 'calculatePercentage'] = float(web_solution.loc[i[0], 'adjustRatio'])
-        web_solution.loc[i[0], 'calculatePercentage'] = float(web_solution.loc[i[0], 'adjustRatio'])
-    web_solution = web_ratio_int(web_solution)
-    adjust_solution, element_output = mixing(args, web_solution)
-    adjust_solution = web_consumption_int(adjust_solution)
-    #计算氧料比update：
-    oxygenMaterialRatio, Matte_T, Slag_T, Wind_Flux, SiO2_T = calc_oxygen(args, element_output)
-    #pandas to req_data
-    res_element = pd_to_res(element_output)[0]
-    res_data = pd_to_res(adjust_solution)
-    new_res_element = [] 
-    for key in res_element.keys(): 
-        if key=='name':continue 
-        new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
-    S_vs_Cu = res_element['S']/res_element['Cu']
+        web_solution = req_to_pd(req_data['list'])
+        old_ratio = copy.deepcopy(web_solution['calculatePercentage'])
+        
+        #如果网页回传了adjustRatio，则接下来mix所用的ratio响应调整。
+        for i in web_solution.iterrows():
+            web_solution.loc[i[0], 'calculatePercentage'] = float(web_solution.loc[i[0], 'adjustRatio'])
+            web_solution.loc[i[0], 'calculatePercentage'] = float(web_solution.loc[i[0], 'adjustRatio'])
+        web_solution = web_ratio_int(web_solution)
+        adjust_solution, element_output = mixing(args, web_solution)
+        adjust_solution = web_consumption_int(adjust_solution)
+        #计算氧料比update：
+        oxygenMaterialRatio, Matte_T, Slag_T, Wind_Flux, SiO2_T = calc_oxygen(args, element_output)
+        #pandas to req_data
+        res_element = pd_to_res(element_output)[0]
+        res_data = pd_to_res(adjust_solution)
+        new_res_element = [] 
+        for key in res_element.keys(): 
+            if key=='name':continue 
+            new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
+        S_vs_Cu = res_element['S']/res_element['Cu']
+    
+        res_data = {
+            "list": 
+                res_data,
+            "calculateParameter":
+            {
+                "oxygenMaterialRatio": round(oxygenMaterialRatio, 2),
+                "totalConsumedAmount": round(sum(adjust_solution['consumed_amounts']), 2),
+                "totalLeftOver": round(sum(adjust_solution['inventoryBalance']), 2),
+                "best_y": round(0.00,2),
+                "paFlow": round(Wind_Flux, 2),
+                "SCuRatio": round(S_vs_Cu, 2),
+                "totalMatte": round(Matte_T, 2),
+                "totalSlag": round(Slag_T, 2),
+                "totalQuartz": round(SiO2_T, 2),
+            },
+            "elementsMixtureList": 
+                new_res_element
+        }
+        if by_update_2:
+            return res_data
+        return jsonify(res_data)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
-    res_data = {
-        "list": 
-            res_data,
-        "calculateParameter":
-        {
-            "oxygenMaterialRatio": round(oxygenMaterialRatio, 2),
-            "totalConsumedAmount": round(sum(adjust_solution['consumed_amounts']), 2),
-            "totalLeftOver": round(sum(adjust_solution['inventoryBalance']), 2),
-            "best_y": round(0.00,2),
-            "paFlow": round(Wind_Flux, 2),
-            "SCuRatio": round(S_vs_Cu, 2),
-            "totalMatte": round(Matte_T, 2),
-            "totalSlag": round(Slag_T, 2),
-            "totalQuartz": round(SiO2_T, 2),
-        },
-        "elementsMixtureList": 
-            new_res_element
-    }
-    if by_update_2:
-        return res_data
-    return jsonify(res_data)
 
 def req_to_pd(req_list):
     pd_data = pd.DataFrame()
@@ -723,100 +739,108 @@ def get_presets(args, req_data):
 @app.route('/api/calculate', methods=['POST', 'GET'])
 @cross_origin()
 def calculate():    #API 1,
-    req_data = request.get_json()
+    try:
+        req_data = request.get_json()
+    
+        #req_data to pd:
+        pd_data = req_to_pd(req_data['list'])
+    
+        #Web-set parameters
+        global args
+        args = get_presets(args, req_data)
+        args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存
+    
+        #For GA-par
+        args.epoch = req_data['modelWeight']['gaEpoch']
+        args.pop = int(int(req_data['modelWeight']['gaPop']/2)*2)
+        args.alpha = req_data['modelWeight']['modelFactorAlpha']
+        args.beta = req_data['modelWeight']['modelFactorBeta']
+        args.gama = req_data['modelWeight']['modelFactorGamma']
+    
+        #For ELEMENTS
+        elements = {} 
+        priorities = []
+        for i in req_data['elementsTargetList']: 
+            elements.update({i['name']:[float(i['percentage'])]})
+            try:
+                priorities.append(float(i['priority']))
+            except:
+                priorities.append(0)
+        if len(priorities) != 0:
+            args.ELEMENT_MATTERS = [i['name'] for i in req_data['elementsTargetList']]
+            args.ELEMENT_TARGETS_MEAN = pd.DataFrame(elements)   #a pandas from dict
+            args.ELEMENT_MATTERS = list(pd.DataFrame(elements).columns)
+            args.ELEMENT_PRIORITIES_SCORE = np.clip(sum(priorities) - np.array(priorities), 1, 99)
+            args.ELEMENT_PRIORITIES_SCORE = args.ELEMENT_PRIORITIES_SCORE/sum(args.ELEMENT_PRIORITIES_SCORE)
+        else:
+            args.gama = 0  #没给优先级，则权重无效，随意填充一些Target
+            args.ELEMENT_TARGETS_MEAN = pd.read_csv("../data/2_ELEMENT_TARGETS.csv")
+            args.ELEMENT_MATTERS = args.ELEMENT_MATTERS
+            args.ELEMENT_PRIORITIES_SCORE = np.array([0]*len(args.ELEMENT_MATTERS))
+        args = compelete_basic_args(args)
+    
+        #Call GA:
+        _best_ratio_adjust_, _y_, best_solution, element_output = run_opt(args)
+        raw_ratio = best_solution['calculatePercentage']
+        best_solution = best_solution.loc[best_solution['calculatePercentage']!=0]
+        best_solution = web_ratio_int(best_solution)
+        best_solution, element_output = mixing(args, best_solution)
+        best_solution = web_consumption_int(best_solution)
+        _, _y_ = evaluation(args, best_solution, element_output)
+    
+        #计算氧料比：
+        oxygenMaterialRatio, Matte_T, Slag_T, Wind_Flux, SiO2_T = calc_oxygen(args, element_output)
+        #pandas to req_data
+        res_element = pd_to_res(element_output)[0]
+        res_data = pd_to_res(best_solution)
+        new_res_element = [] 
+        for key in res_element.keys(): 
+            if key=='name':continue 
+            new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
+        S_vs_Cu = res_element['S']/res_element['Cu']
+    
+        res = {
+            "list": 
+                res_data,
+            "calculateParameter":
+            {
+                "oxygenMaterialRatio": round(oxygenMaterialRatio, 2),
+                "totalConsumedAmount": round(sum(best_solution['consumed_amounts']), 2),
+                "totalLeftOver": round(sum(best_solution['inventoryBalance']), 2),
+                "best_y": round(_y_, 2),
+                "paFlow": round(Wind_Flux, 2),
+                "SCuRatio": round(S_vs_Cu, 2),
+                "totalMatte": round(Matte_T, 2),
+                "totalSlag": round(Slag_T, 2),
+                "totalQuartz": round(SiO2_T, 2),
+            },
+            "elementsMixtureList": 
+                new_res_element
+        }
+        return jsonify(res)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
-    #req_data to pd:
-    pd_data = req_to_pd(req_data['list'])
-
-    #Web-set parameters
-    global args
-    args = get_presets(args, req_data)
-    args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存
-
-    #For GA-par
-    args.epoch = req_data['modelWeight']['gaEpoch']
-    args.pop = int(int(req_data['modelWeight']['gaPop']/2)*2)
-    args.alpha = req_data['modelWeight']['modelFactorAlpha']
-    args.beta = req_data['modelWeight']['modelFactorBeta']
-    args.gama = req_data['modelWeight']['modelFactorGamma']
-
-    #For ELEMENTS
-    elements = {} 
-    priorities = []
-    for i in req_data['elementsTargetList']: 
-        elements.update({i['name']:[float(i['percentage'])]})
-        try:
-            priorities.append(float(i['priority']))
-        except:
-            priorities.append(0)
-    if len(priorities) != 0:
-        args.ELEMENT_MATTERS = [i['name'] for i in req_data['elementsTargetList']]
-        args.ELEMENT_TARGETS_MEAN = pd.DataFrame(elements)   #a pandas from dict
-        args.ELEMENT_MATTERS = list(pd.DataFrame(elements).columns)
-        args.ELEMENT_PRIORITIES_SCORE = np.clip(sum(priorities) - np.array(priorities), 1, 99)
-        args.ELEMENT_PRIORITIES_SCORE = args.ELEMENT_PRIORITIES_SCORE/sum(args.ELEMENT_PRIORITIES_SCORE)
-    else:
-        args.gama = 0  #没给优先级，则权重无效，随意填充一些Target
-        args.ELEMENT_TARGETS_MEAN = pd.read_csv("../data/2_ELEMENT_TARGETS.csv")
-        args.ELEMENT_MATTERS = args.ELEMENT_MATTERS
-        args.ELEMENT_PRIORITIES_SCORE = np.array([0]*len(args.ELEMENT_MATTERS))
-    args = compelete_basic_args(args)
-
-    #Call GA:
-    _best_ratio_adjust_, _y_, best_solution, element_output = run_opt(args)
-    raw_ratio = best_solution['calculatePercentage']
-    best_solution = best_solution.loc[best_solution['calculatePercentage']!=0]
-    best_solution = web_ratio_int(best_solution)
-    best_solution, element_output = mixing(args, best_solution)
-    best_solution = web_consumption_int(best_solution)
-    _, _y_ = evaluation(args, best_solution, element_output)
-
-    #计算氧料比：
-    oxygenMaterialRatio, Matte_T, Slag_T, Wind_Flux, SiO2_T = calc_oxygen(args, element_output)
-    #pandas to req_data
-    res_element = pd_to_res(element_output)[0]
-    res_data = pd_to_res(best_solution)
-    new_res_element = [] 
-    for key in res_element.keys(): 
-        if key=='name':continue 
-        new_res_element.append({'name':key, 'percentage':np.round(res_element[key], 2)})
-    S_vs_Cu = res_element['S']/res_element['Cu']
-
-    res = {
-        "list": 
-            res_data,
-        "calculateParameter":
-        {
-            "oxygenMaterialRatio": round(oxygenMaterialRatio, 2),
-            "totalConsumedAmount": round(sum(best_solution['consumed_amounts']), 2),
-            "totalLeftOver": round(sum(best_solution['inventoryBalance']), 2),
-            "best_y": round(_y_, 2),
-            "paFlow": round(Wind_Flux, 2),
-            "SCuRatio": round(S_vs_Cu, 2),
-            "totalMatte": round(Matte_T, 2),
-            "totalSlag": round(Slag_T, 2),
-            "totalQuartz": round(SiO2_T, 2),
-        },
-        "elementsMixtureList": 
-            new_res_element
-    }
-    return jsonify(res)
 
 @app.route('/api/getInventory', methods=['GET'])
 @cross_origin()
 def getInventory():    #API 0-1   temporary 演示版，实际不需要
-    #获取库存 for 显示
-    inventory_storage = get_storage(for_web=True)
-    #pandas to res_data
-    res_data = pd_to_res(inventory_storage)
-    res_data = {
-        "list": 
-            res_data,
-        'materialList': 
-            compute_element_overview(inventory_storage)
-    }
-    return jsonify(res_data)
-
+    try:
+        #获取库存 for 显示
+        inventory_storage = get_storage(for_web=True)
+        #pandas to res_data
+        res_data = pd_to_res(inventory_storage)
+        res_data = {
+            "list": 
+                res_data,
+            'materialList': 
+                compute_element_overview(inventory_storage)
+        }
+        return jsonify(res_data)
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
 if __name__ == '__main__':
     doc = 'GA搜索和“三种必选（仅必选，必选且用完，必选且比例）”的关系：只有“仅必选”参与GA搜索，同时GA的5%阈值考虑“必选且比例”，原则上“必选且用完”和“必选且比例”在GA外生成solution时候才被加入，evaluation的时候“必选且用完”要另外单独考虑。'
