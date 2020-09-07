@@ -113,12 +113,11 @@ def compelete_basic_args(args, req, by_correct_data=False):
         args.lower_bounds[switch_index] = copy.deepcopy(args.upper_bounds[switch_index])
         args.upper_bounds[switch_index] = tmp_lower
         args.upper_bounds += epsilon   #Add tiny to aviod nan in GA
-    
         #GA basic:
         args.NUM_OF_TYPES_FOR_GA = len(args.obs_T) + len(args.obs_Cu) + len(args.obs_Au) + len(args.obs_Ag)
         #args.precisions = 1 / (10**(np.array([miscs.scale_and_precision(i)[1] for i in args.upper_bounds])+1))
         #NOTE: precision & epsilon 的关系，否则会导致ga生成nan
-        args.precisions = 0.001*np.ones(shape=args.lower_bounds.shape)
+        args.precisions = 1e-5
     else:
         pass
     return args
@@ -161,23 +160,33 @@ def evaluation(ga_T, ga_Cu, ga_Au, ga_Ag):
     Cu_balance = np.abs((args.lastBalanceDry*args.lastBalancePercentageCu + args.currentIncomeDry*args.currentIncomePercentageCu - ga_T*ga_Cu).sum(axis=1))/100   #% --> /100, t
     Au_balance = np.abs((args.lastBalanceDry*args.lastBalanceUnitageAu + args.currentIncomeDry*args.currentIncomeUnitageAu - ga_T*ga_Au).sum(axis=1))/1000        #g, kg -->/1000
     Ag_balance = np.abs((args.lastBalanceDry*args.lastBalanceUnitageAg + args.currentIncomeDry*args.currentIncomeUnitageAg - ga_T*ga_Ag).sum(axis=1))/1000        #g, kg -->/1000
-    embed()
     #单EPOCH， 大POP，使用均值MEAN作为自平衡系数（分母）：
     if args.AUTO_WEIGHTS == {}:
-        args.AUTO_WEIGHTS['T_prob_weights'] = T_prob.mean()
-        args.AUTO_WEIGHTS['Cu_prob_weights'] = Cu_prob.mean()
-        args.AUTO_WEIGHTS['Au_prob_weights'] = Au_prob.mean()
-        args.AUTO_WEIGHTS['Ag_prob_weights'] = Ag_prob.mean()
-        args.AUTO_WEIGHTS['Cu_balance_weights'] = Cu_balance.mean()
-        args.AUTO_WEIGHTS['Au_balance_weights'] = Au_balance.mean()
-        args.AUTO_WEIGHTS['Ag_balance_weights'] = Ag_balance.mean()
+        args.AUTO_WEIGHTS['T_prob_weights'] = T_prob.std()
+        args.AUTO_WEIGHTS['Cu_prob_weights'] = Cu_prob.std()
+        args.AUTO_WEIGHTS['Au_prob_weights'] = Au_prob.std()
+        args.AUTO_WEIGHTS['Ag_prob_weights'] = Ag_prob.std()
+        args.AUTO_WEIGHTS['Cu_balance_weights'] = Cu_balance.std()
+        args.AUTO_WEIGHTS['Au_balance_weights'] = Au_balance.std()
+        args.AUTO_WEIGHTS['Ag_balance_weights'] = Ag_balance.std()
         print("Auto weights generated:", args.AUTO_WEIGHTS)
 
     #GA适应度需要最大值，但GA自己取了负数，所以幂次直接求最小值即可，不用任何转换
+    #1:
     #第一部分的目标函数，是最大似然的幂指数加和:
     scores_mle = args.WEIGHT_T_VOLUME*T_prob/args.AUTO_WEIGHTS['T_prob_weights'] + args.WEIGHT_CU_PERCENTAGE*Cu_prob/args.AUTO_WEIGHTS['Cu_prob_weights'] + args.WEIGHT_AU_PERCENTAGE*Au_prob/args.AUTO_WEIGHTS['Au_prob_weights'] + args.WEIGHT_AG_PERCENTAGE*Ag_prob/args.AUTO_WEIGHTS['Ag_prob_weights']
     #第二部分的目标函数，是平衡约束，越平衡则该值越小，也不用转换：
     scores_balance = args.WEIGHT_BALANCE * (Cu_balance/args.AUTO_WEIGHTS['Cu_balance_weights'] + Au_balance/args.AUTO_WEIGHTS['Au_balance_weights'] + Ag_balance/args.AUTO_WEIGHTS['Ag_balance_weights'])  #NOTE: 铜金银目前非常不平衡，金银的单位是kg，数值上比重此处不平衡
+    #2:
+    #Ignore weights
+    scores_mle = T_prob + Cu_prob + Au_prob + Ag_prob
+    scores_balance = Cu_balance + Au_balance + Ag_balance
+    #3:
+    #mannual
+    scores_mle = T_prob/args.AUTO_WEIGHTS['T_prob_weights'] + args.WEIGHT_CU_PERCENTAGE*Cu_prob/args.AUTO_WEIGHTS['Cu_prob_weights'] + args.WEIGHT_AU_PERCENTAGE*Au_prob/args.AUTO_WEIGHTS['Au_prob_weights'] + args.WEIGHT_AG_PERCENTAGE*Ag_prob/args.AUTO_WEIGHTS['Ag_prob_weights']
+    #第二部分的目标函数，是平衡约束，越平衡则该值越小，也不用转换：
+    scores_balance = 2*Cu_balance/args.AUTO_WEIGHTS['Cu_balance_weights'] + Au_balance/args.AUTO_WEIGHTS['Au_balance_weights'] + Ag_balance/args.AUTO_WEIGHTS['Ag_balance_weights']  #NOTE: 铜金银目前非常不平衡，金银的单位是kg，数值上比重此处不平衡
+    #print("T_prob, Cu_prob, Au_prob, Ag_prob, Cu_balance, Au_balance, Ag_balance", T_prob.std(), Cu_prob.std(), Au_prob.std(), Ag_prob.std(), Cu_balance.std(), Au_balance.std(), Ag_balance.std())
     scores = scores_mle + scores_balance
     if args.IS_VECTOR:
         scores = scores
@@ -278,7 +287,7 @@ def quick_compute(args):
         recovery_Cu = np.abs(args.data_all[args.data_all.name=='渣精矿']['currentCostCu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostCu'].sum()))*100
         recovery_Au = np.abs(args.data_all[args.data_all.name=='渣精矿']['currentCostAu'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAu'].sum()))*100
         recovery_Ag = np.abs(args.data_all[args.data_all.name=='渣精矿']['currentCostAg'].sum() / (args.data_all[args.data_all.material=='原料']['currentCostAg'].sum()))*100
-    elif args.factory == '全场':
+    elif args.factory == '全厂':
         #铜回收率%=本月产出阴极铜、电积铜÷（本期使用原料+上月中间结存-本月中间结存-阳极泥）×100    #TODO:包括旋流？
         #银回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
         #金回收率%=本月产出阳极泥÷（本期使用原料+上月中间结存-本月中间结存）×100
@@ -396,10 +405,10 @@ def correct_data():    #API
         ga_Au = best_x[:, len(args.obs_T)+len(args.obs_Cu):len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au)]
         ga_Ag = best_x[:, len(args.obs_T)+len(args.obs_Cu)+len(args.obs_Au):]
         #放回要给web的列表, 这是盘点值，理应都是正的或0
-        args.data_all['currentBalanceDry'] = np.round(ga_T.flatten())
-        args.data_all['currentBalancePercentageCu'] = np.round(ga_Cu.flatten())
-        args.data_all['currentBalanceUnitageAu'] = np.round(ga_Au.flatten())
-        args.data_all['currentBalanceUnitageAg'] = np.round(ga_Ag.flatten())
+        args.data_all['currentBalanceDry'] = np.round(ga_T.flatten(), 5)
+        args.data_all['currentBalancePercentageCu'] = np.round(ga_Cu.flatten(), 5)
+        args.data_all['currentBalanceUnitageAu'] = np.round(ga_Au.flatten(), 5)
+        args.data_all['currentBalanceUnitageAg'] = np.round(ga_Ag.flatten(), 5)
         #计算消耗、全场回收率
         args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
     
@@ -432,8 +441,8 @@ def correct_data():    #API
 if __name__ == '__main__':
     doc = '金属平衡需要解决‘什么样的真实值最优可能获得目前的观测值’的最大似然问题～求解过程见doc文档，此处从目标函数开始编程。'
     parser = argparse.ArgumentParser()
-    parser.add_argument("-E", '--EPOCH', type=int, default=100)
-    parser.add_argument("-P", '--POP', type=int, default=2000)
+    parser.add_argument("-E", '--EPOCH', type=int, default=300)
+    parser.add_argument("-P", '--POP', type=int, default=3000)
     parser.add_argument('--WEIGHT_T_VOLUME', type=int, default=1)   #volume (T)
     parser.add_argument("--WEIGHT_CU_PERCENTAGE", type=int, default=1) 
     parser.add_argument("--WEIGHT_AU_PERCENTAGE", type=int, default=1) 
