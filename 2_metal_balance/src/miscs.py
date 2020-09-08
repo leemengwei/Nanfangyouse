@@ -36,6 +36,7 @@ def req_to_pd(req_list):
 def pd_to_res(storage):
     res_data = [] 
     key_copying = {'ratio':'calculatePercentage', 'leftover':'inventoryBalance', 'volume_of_storage':'inventory'}
+    storage = storage.fillna(0)
     for i in storage.iterrows(): 
         this_dict = {}
         this_dict['name'] = i[0]
