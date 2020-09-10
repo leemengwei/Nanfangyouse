@@ -188,7 +188,7 @@ def evaluation(ga_T, ga_Cu, ga_Au, ga_Ag):
     #第二部分的目标函数，是平衡约束，越平衡则该值越小，也不用转换：
     scores_balance = 2*Cu_balance/args.AUTO_WEIGHTS['Cu_balance_weights'] + Au_balance/args.AUTO_WEIGHTS['Au_balance_weights'] + Ag_balance/args.AUTO_WEIGHTS['Ag_balance_weights']  #NOTE: 铜金银目前非常不平衡，金银的单位是kg，数值上比重此处不平衡
     #print("T_prob, Cu_prob, Au_prob, Ag_prob, Cu_balance, Au_balance, Ag_balance", T_prob.std(), Cu_prob.std(), Au_prob.std(), Ag_prob.std(), Cu_balance.std(), Au_balance.std(), Ag_balance.std())
-    scores = scores_mle + scores_balance
+    scores = scores_mle + 10*scores_balance
     if args.IS_VECTOR:
         scores = scores
     else:
@@ -262,9 +262,9 @@ def quick_compute(args):
     args.data_all['currentCostAg'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAg'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAg'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAg'])/1000  #kg
     args.data_all['currentCostAu'] = (args.data_all['lastBalanceDry']*args.data_all['lastBalanceUnitageAu'] + args.data_all['currentIncomeDry']*args.data_all['currentIncomeUnitageAu'] - args.data_all['currentBalanceDry']*args.data_all['currentBalanceUnitageAu'])/1000  #kg
 
-    Cu_balance = sum(args.data_all['currentCostCu'])
-    Au_balance = sum(args.data_all['currentCostAu'])
-    Ag_balance = sum(args.data_all['currentCostAg'])
+    Cu_balance = sum(args.data_all['currentCostCu'])/args.data_all['currentCostCu'][args.data_all['currentCostCu']>0].sum()*100
+    Au_balance = sum(args.data_all['currentCostAu'])/args.data_all['currentCostAu'][args.data_all['currentCostAu']>0].sum()*100
+    Ag_balance = sum(args.data_all['currentCostAg'])/args.data_all['currentCostAg'][args.data_all['currentCostAg']>0].sum()*100
     #args.data_all['number'] = args.data_all.index
     #recovery_Cu = np.abs((args.data_all[args.data_all.material!='原料']['currentCostCu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostCu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostCu'].values.sum()))*100
     #recovery_Au = np.abs((args.data_all[args.data_all.material!='原料']['currentCostAu'].values.sum()-args.data_all[args.data_all.material=='损失']['currentCostAu'].values.sum())/(args.data_all[args.data_all.material=='原料']['currentCostAu'].values.sum()))*100
@@ -442,8 +442,8 @@ def correct_data():    #API
 if __name__ == '__main__':
     doc = '金属平衡需要解决‘什么样的真实值最优可能获得目前的观测值’的最大似然问题～求解过程见doc文档，此处从目标函数开始编程。'
     parser = argparse.ArgumentParser()
-    parser.add_argument("-E", '--EPOCH', type=int, default=300)
-    parser.add_argument("-P", '--POP', type=int, default=3000)
+    parser.add_argument("-E", '--EPOCH', type=int, default=200)
+    parser.add_argument("-P", '--POP', type=int, default=2000)
     parser.add_argument('--WEIGHT_T_VOLUME', type=int, default=1)   #volume (T)
     parser.add_argument("--WEIGHT_CU_PERCENTAGE", type=int, default=1) 
     parser.add_argument("--WEIGHT_AU_PERCENTAGE", type=int, default=1) 
