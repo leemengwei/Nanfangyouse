@@ -20,7 +20,7 @@ from multiprocessing import cpu_count
 #NETWORK
 from flask import Flask, request, jsonify
 from sys import stderr
-from flask_cors import cross_origin  #戚总-张驰API
+from flask_cors import cross_origin  #WEB
 from calc_oxygen import calc_oxygen
 app = Flask(__name__)
 import random
@@ -56,7 +56,7 @@ def shrink_GA_ratio(their_ratio):  #Vectorized
     their_ratio = their_ratio*(1-args.SHRINGKER) #GA生成的概率sum是100%，但有时可能有“必选且指定比例”项目存在，GA内部仅在5%阈值上是考虑了这个因素的，生成的ratio sum会是100%，这里收缩为95%，随后再加5%，mix之前调整一下
     return their_ratio
 
-def GAwrapper(their_ratio):   #their_ratio是遗传算法给过来的, GA算法本身的API要求, NOTE:their_ratio是一个个给回来的，准备矢量化
+def GAwrapper(their_ratio):   #their_ratio是遗传算法给过来的, GA算法本身的要求, NOTE:their_ratio是一个个给回来的，准备矢量化
     #start = time.time()
     #global args
     #GA搜索的时候生成ratio和为100%，为了获得实际的evaluate，需要每次先缩再加must with ratio项（和最终的gax best 无关，gax best到时候还要再加）
@@ -109,8 +109,8 @@ def load_solution():
 
 def expand_full_solution(their_ratio):
     #加上必备行
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.calculatePercentage = their_ratio
-    full_solution = args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.append(args.INGREDIENT_MUST_WITH_RATIO)
+    args.INGREDIENT_FOR_GA.calculatePercentage = their_ratio
+    full_solution = args.INGREDIENT_FOR_GA.append(args.INGREDIENT_MUST_WITH_RATIO)
     full_solution = full_solution.reindex(args.INGREDIENT_STORAGE.index)
     return full_solution  
 
@@ -262,6 +262,7 @@ def pd_to_res(storage):
     return res_data 
 
 def compelete_basic_args(args):
+    args.INGREDIENT_STORAGE = args.INGREDIENT_STORAGE.fillna(0)
     #获取库存 for 计算
     if not args.ON_SERVER:
         args.INGREDIENT_STORAGE = get_storage()
@@ -271,16 +272,12 @@ def compelete_basic_args(args):
     args.ratio_taken = sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage'])
     args.INGREDIENT_MUST_CLEAN = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.clean!=0].index)]  #必选且必须清空该料
     args.INGREDIENT_JUST_MUST = args.INGREDIENT_STORAGE.loc[list(set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.required!=0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.calculatePercentage==0].index) & set(args.INGREDIENT_STORAGE[args.INGREDIENT_STORAGE.clean==0].index))]  #必选但不指定比例
-    args.INGREDIENT_CHOOSE_FROM = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[(args.INGREDIENT_STORAGE.required+args.INGREDIENT_STORAGE.clean)==0].index)]
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_CHOOSE_FROM.index) + list(args.INGREDIENT_JUST_MUST.index)]
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_WITH_RATIO = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_CHOOSE_FROM.index) + list(args.INGREDIENT_JUST_MUST.index) + list(args.INGREDIENT_MUST_WITH_RATIO.index)]
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_CHOOSE_FROM.index) + list(args.INGREDIENT_JUST_MUST.index) + list(args.INGREDIENT_MUST_CLEAN.index)]
+    args.INGREDIENT_NO_CONDITION = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_STORAGE[(args.INGREDIENT_STORAGE.required+args.INGREDIENT_STORAGE.clean)==0].index)]
+    args.INGREDIENT_FOR_GA = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_NO_CONDITION.index) + list(args.INGREDIENT_JUST_MUST.index) + list(args.INGREDIENT_MUST_CLEAN.index)]
     args.JUST_MUST_AND_MUST_CLEAN = args.INGREDIENT_STORAGE.loc[list(args.INGREDIENT_JUST_MUST.index) + list(args.INGREDIENT_MUST_CLEAN.index)]
     #整理一下顺序, 要给GA准备辅助的位置，来简化must clean和just must两个项目
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST = args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST.reindex(args.INGREDIENT_STORAGE.index).dropna()
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_WITH_RATIO = args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_WITH_RATIO.reindex(args.INGREDIENT_STORAGE.index).dropna()
-    args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN = args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.reindex(args.INGREDIENT_STORAGE.index).dropna()
-    args.NUM_OF_TYPES_FOR_GA = len(args.INGREDIENT_CHOOSE_FROM) + len(args.INGREDIENT_JUST_MUST) + len(args.INGREDIENT_MUST_CLEAN)
+    args.INGREDIENT_FOR_GA = args.INGREDIENT_FOR_GA.reindex(args.INGREDIENT_STORAGE.index).dropna()  #此处必须dropna！ 因为完整的index会给前者带来nan
+    args.NUM_OF_TYPES_FOR_GA = len(args.INGREDIENT_NO_CONDITION) + len(args.INGREDIENT_JUST_MUST) + len(args.INGREDIENT_MUST_CLEAN)
     args.ELEMENT_TARGETS_LOW, args.ELEMENT_TARGETS_HIGH = get_elements_boundary(args)
     #对于必清的项目，计算其相互的比例倍数，准备通过dimension reducer给GA算法
     if len(args.INGREDIENT_MUST_CLEAN)>0:
@@ -289,11 +286,11 @@ def compelete_basic_args(args):
         dimension_reducer = pd.DataFrame([])
     args.DIMENSION_REDUCER_DICT = {} 
     for i in dimension_reducer.index: 
-        args.DIMENSION_REDUCER_DICT[list(args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.index).index(i)] = dimension_reducer[i]
+        args.DIMENSION_REDUCER_DICT[list(args.INGREDIENT_FOR_GA.index).index(i)] = dimension_reducer[i]
     #另外需要给ga准备just must(和must clean)的col index
     args.JUST_MUST_AND_MUST_CLEAN_COLUMNS = []
     for i in args.JUST_MUST_AND_MUST_CLEAN.index:
-        args.JUST_MUST_AND_MUST_CLEAN_COLUMNS.append(list(args.INGREDIENT_CHOOSE_FROM_AND_JUST_MUST_AND_MUST_CLEAN.index).index(i))
+        args.JUST_MUST_AND_MUST_CLEAN_COLUMNS.append(list(args.INGREDIENT_FOR_GA.index).index(i))
     args.SHRINGKER = sum(args.INGREDIENT_MUST_WITH_RATIO['calculatePercentage'].values)
     return args
 
@@ -326,8 +323,12 @@ def quick_recommend():   #API 3
         solution_2 = req_to_pd(solution_2)
         #NOTE:传订单1（被衔接）当时的手动修改的库存状态。
         solution_1.loc[:, 'inventoryBalance'] = copy.deepcopy(solution_1['inventory'])
-        solution_2.loc[:, 'inventoryBalance'] = copy.deepcopy(solution_2['inventory']) 
-    
+        solution_2.loc[:, 'inventoryBalance'] = copy.deepcopy(solution_2['inventory'])
+        solution_1 = solution_1.set_index('number')
+        solution_2 = solution_2.set_index('number')
+        solution_1['number'] = solution_1.index
+        solution_2['number'] = solution_2.index
+   
         #Web-set parameters: (注意指的是新订单的各个量)
         global args  #这里要给args加冰铜参数等。
         args = get_presets(args, req_data)
@@ -586,7 +587,7 @@ def get_presets(args, req_data):
 @app.route('/api/calculate', methods=['POST', 'GET'])
 @cross_origin()
 def calculate():    #API 1,
-    try:
+    #try:
         req_data = request.get_json()
     
         #req_data to pd:
@@ -596,6 +597,7 @@ def calculate():    #API 1,
         global args
         args = get_presets(args, req_data)
         args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存
+        args.INGREDIENT_STORAGE = args.INGREDIENT_STORAGE.fillna(0)
     
         #For GA-par
         args.epoch = req_data['modelWeight']['gaEpoch']
@@ -665,9 +667,9 @@ def calculate():    #API 1,
                 new_res_element
         }
         return jsonify(res)
-    except Exception as e:
-        print('Error', e)
-        return jsonify({'error': str(e)}), 405
+    #except Exception as e:
+    #    print('Error', e)
+    #    return jsonify({'error': str(e)}), 405
 
 if __name__ == '__main__':
     doc = 'GA搜索和“三种必选（仅必选，必选且用完，必选且比例）”的关系：只有“仅必选”参与GA搜索，同时GA的5%阈值考虑“必选且比例”，原则上“必选且用完”和“必选且比例”在GA外生成solution时候才被加入，evaluation的时候“必选且用完”要另外单独考虑。'
