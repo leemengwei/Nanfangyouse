@@ -23,11 +23,11 @@ def calc_oxygen(args, Mine_in, debug=False):
     Oxygen_Peer_Coal     = args.OXYGEN_PEER_COAL
     Coal_T               = args.COAL_T
     Fe_vs_SiO2           = args.Fe_vs_SiO2
-    Fe2O3_vs_FeO         = args.Fe2O3_vs_FeO
+    Fe3O4_vs_FeO         = args.Fe3O4_vs_FeO
     Flow                 = args.Flow
     Oxygen_Concentration = args.OXYGEN_CONCENTRATION/100
     RecallRate           = args.RecallRate   #矿的直收率默认0.98
-    #print(args.Matte_Cu_Percentage,args.Slag_Cu_Percentage,args.Slag_S_Percentage,args.Slag_Fe_Percentage,args.Slag_SiO2_Percentage,args.Flow , args.Fe2O3_vs_FeO)
+    #print(args.Matte_Cu_Percentage,args.Slag_Cu_Percentage,args.Slag_S_Percentage,args.Slag_Fe_Percentage,args.Slag_SiO2_Percentage,args.Flow , args.Fe3O4_vs_FeO)
 
     #Cu in Mine  (T)
     Mine_Cu_T = (Flow - Flow*Mine_in.H2O/100)*Mine_in.Cu/100*RecallRate
@@ -76,7 +76,7 @@ def calc_oxygen(args, Mine_in, debug=False):
     Oxidated_Fe_T = Mine_Fe_T - Matte_Fe_T
     Oxidated_S_T = Mine_S_T - Matte_S_T - Slag_S_T
     #2Fe + O2 = 2FeO ;   3Fe + 2O2 = Fe3O4  前者0.4 后者0.6
-    Oxygen_needed_T_by_Fe = Oxidated_Fe_T*(1-1/(1+1/(Fe2O3_vs_FeO+epsilon)))/112*32  + Oxidated_Fe_T*(1/(1+1/(Fe2O3_vs_FeO+epsilon)))/168*64
+    Oxygen_needed_T_by_Fe = Oxidated_Fe_T*(1-1/(1+1/(Fe3O4_vs_FeO+epsilon)))/112*32  + Oxidated_Fe_T*(1/(1+1/(Fe3O4_vs_FeO+epsilon)))/168*64
     Oxygen_needed_T_by_S = Oxidated_S_T*32*1/32
     Oxygen_needed_T = Oxygen_needed_T_by_Fe + Oxygen_needed_T_by_S
 
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-Matte_Cu_Percentage", '--Matte_Cu_Percentage', type=float, default=0.74)
     parser.add_argument("-Flow", '--Flow', type=float, default=150)
-    parser.add_argument("-Fe2O3_vs_FeO", '--Fe2O3_vs_FeO', type=float, default=4/6)
+    parser.add_argument("-Fe3O4_vs_FeO", '--Fe3O4_vs_FeO', type=float, default=4/6)
     args = parser.parse_args()
 
     #Mine in 混合矿输入  
