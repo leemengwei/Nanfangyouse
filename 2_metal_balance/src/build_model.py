@@ -370,10 +370,14 @@ def overall():    #API
         req['list'] = req['rlResizeList'] + req['jlResizeList'] + req['zhResizeList']
         global args
         args = compelete_basic_args(args, req, by_correct_data=False)
+        #如果是最终全厂调用，则额外修改一下类别：
+        if args.factory == '全厂':
+            args.data_all = alter_type(args.data_all)
+    
+        #计算收率
         args, recovery_Ag, recovery_Au, recovery_Cu, recall_Ag, recall_Au, recall_Cu, Cu_balance, Au_balance, Ag_balance = quick_compute(args)
-
-        #须重新排序，并update所有
-        quick_update()
+    
+        #返回部分
         res_data = miscs.pd_to_res(args.data_all)
         res_data = {
                'list':res_data,
