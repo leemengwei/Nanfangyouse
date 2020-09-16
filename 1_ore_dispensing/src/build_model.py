@@ -437,13 +437,9 @@ def quick_recommend():   #API 3
 @app.route('/api/quick_update2', methods=['POST', 'GET'])
 @cross_origin()
 def quick_update2():   #API 4
-    try:
-        res_data = quick_update(by_update_2=True).json
-        res_data['recommended'] = '(手动调整返回)'
-        return jsonify(res_data)
-    except Exception as e:
-        print('Error', e)
-        return jsonify({'error': str(e)}), 405
+    res_data = quick_update(by_update_2=True).json
+    res_data['recommended'] = '(手动调整返回)'
+    return jsonify(res_data)
 
 @app.route('/api/quick_update', methods=['POST', 'GET'])
 @cross_origin()
@@ -457,6 +453,8 @@ def quick_update(by_update_2=False):   #API 2
         args = get_presets(args, req_data)
     
         web_solution = req_to_pd(req_data['list'])
+        web_solution = web_solution.set_index('number')
+        web_solution['number'] = web_solution.index
         old_ratio = copy.deepcopy(web_solution['calculatePercentage'])
         
         #如果网页回传了adjustRatio，则接下来mix所用的ratio响应调整。
@@ -547,7 +545,7 @@ def web_ratio_int(best_solution):
         best_solution.loc[:, 'calculatePercentage'] = np.round(interger_ratio, 5)  #Web display bug
     except Exception as e:
         best_solution.loc[:, 'calculatePercentage'] = raw_ratio
-        print("Ratio error!! pass", e)
+        print("Ratio error!! pass (%s)"%e)
     return best_solution
 
 def web_consumption_int(best_solution):
@@ -587,7 +585,7 @@ def get_presets(args, req_data):
 @app.route('/api/calculate', methods=['POST', 'GET'])
 @cross_origin()
 def calculate():    #API 1,
-    #try:
+    try:
         req_data = request.get_json()
     
         #req_data to pd:
@@ -598,6 +596,8 @@ def calculate():    #API 1,
         args = get_presets(args, req_data)
         args.INGREDIENT_STORAGE = pd_data   #NOTE 接收的配料基础数据是当前的库存
         args.INGREDIENT_STORAGE = args.INGREDIENT_STORAGE.fillna(0)
+        args.INGREDIENT_STORAGE = args.INGREDIENT_STORAGE.set_index('number')
+        args.INGREDIENT_STORAGE['number'] = args.INGREDIENT_STORAGE.index
     
         #For GA-par
         args.epoch = req_data['modelWeight']['gaEpoch']
@@ -667,9 +667,9 @@ def calculate():    #API 1,
                 new_res_element
         }
         return jsonify(res)
-    #except Exception as e:
-    #    print('Error', e)
-    #    return jsonify({'error': str(e)}), 405
+    except Exception as e:
+        print('Error', e)
+        return jsonify({'error': str(e)}), 405
 
 if __name__ == '__main__':
     doc = 'GA搜索和“三种必选（仅必选，必选且用完，必选且比例）”的关系：只有“仅必选”参与GA搜索，同时GA的5%阈值考虑“必选且比例”，原则上“必选且用完”和“必选且比例”在GA外生成solution时候才被加入，evaluation的时候“必选且用完”要另外单独考虑。'
