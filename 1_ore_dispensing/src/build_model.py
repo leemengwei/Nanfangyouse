@@ -122,6 +122,7 @@ def get_consumed_amounts(_ratios_, _volume_of_storage_, _solution_index_):  #Vec
 
 def mixing(args, full_solution):
     _ratios_ = full_solution['calculatePercentage'].values
+    _H2O_ = full_solution['H2O'].values
     _volume_of_storage_ = full_solution['inventory'].values
     _solution_index_ = full_solution.index
     _elements_ = full_solution[args.ELEMENTS].values
@@ -136,7 +137,11 @@ def mixing(args, full_solution):
     full_solution['inventoryBalance'] = _volume_of_storage_ - _consumed_amounts_
     full_solution['productionTime'] = np.round(_volume_of_storage_/(_ratios_*args.Flow+epsilon)/24, 1)
     #compute mix element of full solution
-    _element_output_ = (_ratios_.reshape(-1,1) * _elements_).sum(axis=0)
+    #_element_output_ = (_ratios_.reshape(-1,1) * _elements_).sum(axis=0) / 1
+    #mix element without H2O:
+    _element_output_ = (_ratios_.reshape(-1,1) * (100-_H2O_.reshape(-1,1))/100 * _elements_).sum(axis=0) / (_ratios_.reshape(-1,1) * (100-_H2O_.reshape(-1,1))/100).sum()
+    #set H2O to dry:
+    _element_output_[args.ELEMENTS.index('H2O')] = 0
     element_output = pd.DataFrame(_element_output_.reshape(1,-1), columns=args.ELEMENTS)
     return full_solution, element_output
 
@@ -558,11 +563,11 @@ def web_consumption_int(best_solution):
     #    best_solution.loc[index, 'calculatePercentage'] = str(best_solution.loc[index, 'calculatePercentage'])+" (%s%%)"%np.round(raw_ratio.loc[index]*100,2)
     return best_solution
 
-def compute_element_overview(storage):
-    new_res_element = []
-    for this_element in args.ELEMENTS:
-        new_res_element.append({'name': this_element, 'percentage': np.round(sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']*storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), this_element]) / sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']), 2)})
-    return new_res_element
+#def compute_element_overview(storage):
+#    new_res_element = []
+#    for this_element in args.ELEMENTS:
+#        new_res_element.append({'name': this_element, 'percentage': np.round(sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']*storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), this_element]) / sum(storage.loc[list(set(storage.index) - set(args.NOT_COMPUTE)), 'inventory']), 2)})
+#    return new_res_element
 
 def get_presets(args, req_data):
     args.Matte_Cu_Percentage  = float(req_data['presetParameter']['matteTargetGradePercentage'])

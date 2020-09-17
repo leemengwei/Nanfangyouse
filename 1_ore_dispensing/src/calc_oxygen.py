@@ -11,7 +11,6 @@ import copy
 from sympy import *
 epsilon = 1e-9
 def calc_oxygen(args, Mine_in, debug=False):
-    #TODO: from web
     Matte_Cu_Percentage  = args.Matte_Cu_Percentage/100
     Matte_Fe_Percentage  = args.Matte_Fe_Percentage/100
     Matte_S_Percentage   = args.Matte_S_Percentage/100
