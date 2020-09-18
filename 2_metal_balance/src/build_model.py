@@ -1,4 +1,7 @@
 #!/usr/bin/python
+from pycallgraph import PyCallGraph
+from pycallgraph.output import GraphvizOutput
+
 import argparse
 import pandas as pd
 import numpy as np
@@ -455,9 +458,7 @@ def correct_data():    #API
         print('Error', e)
         return jsonify({'error': str(e)}), 405
 
-
-
-if __name__ == '__main__':
+def main():
     doc = '金属平衡需要解决‘什么样的真实值最优可能获得目前的观测值’的最大似然问题～求解过程见doc文档，此处从目标函数开始编程。'
     parser = argparse.ArgumentParser()
     parser.add_argument("-E", '--EPOCH', type=int, default=200)
@@ -481,4 +482,12 @@ if __name__ == '__main__':
     args.Ag_balance_history = []
 
     app.run(host='0.0.0.0', port=7002, debug=True)
+
+
+if __name__ == '__main__':
+    graphviz = GraphvizOutput()
+    graphviz.output_file = 'basic.png'
+
+    with PyCallGraph(output=graphviz):
+        main()
 

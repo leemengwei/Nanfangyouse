@@ -1,3 +1,6 @@
+from pycallgraph import PyCallGraph
+from pycallgraph.output import GraphvizOutput
+
 import tqdm
 import argparse
 import pandas as pd
@@ -676,7 +679,7 @@ def calculate():    #API 1,
         print('Error', e)
         return jsonify({'error': str(e)}), 405
 
-if __name__ == '__main__':
+def main():
     doc = 'GA搜索和“三种必选（仅必选，必选且用完，必选且比例）”的关系：只有“仅必选”参与GA搜索，同时GA的5%阈值考虑“必选且比例”，原则上“必选且用完”和“必选且比例”在GA外生成solution时候才被加入，evaluation的时候“必选且用完”要另外单独考虑。'
     parser = argparse.ArgumentParser()
     parser.add_argument("-D", '--DEBUG', action='store_true', default=False)
@@ -743,5 +746,9 @@ if __name__ == '__main__':
 #仅必选的通过扩大100倍保留了，必用光的多项有reducer，但貌似没有做惩罚。先这样吧。
 
 
+if __name__ == '__main__':
+    graphviz = GraphvizOutput()
+    graphviz.output_file = 'basic.png'
 
-
+    with PyCallGraph(output=graphviz):
+        main()
